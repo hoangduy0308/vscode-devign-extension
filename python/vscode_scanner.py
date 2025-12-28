@@ -235,7 +235,7 @@ def import_devign_modules(model_dir: Optional[Path] = None):
     Only uses modules from the downloaded model_dir to ensure consistent
     inference results across different machines.
     """
-    global DEVIGN_AVAILABLE, IMPORT_ERROR, VulnerabilityDetector, InferenceConfig
+    global DEVIGN_AVAILABLE, IMPORT_ERROR, ModelWrapper, InferenceConfig, get_model_wrapper
     
     # Setup paths if model_dir provided
     if model_dir:
@@ -250,7 +250,7 @@ def import_devign_modules(model_dir: Optional[Path] = None):
             print(f"Could not list model dir: {e}", file=sys.stderr)
     
     try:
-        from devign_infer import VulnerabilityDetector, InferenceConfig
+        from devign_infer import ModelWrapper, InferenceConfig, get_model_wrapper
         from devign_infer.config import find_model_path, find_vocab_path
         DEVIGN_AVAILABLE = True
         print("Successfully imported devign_infer modules", file=sys.stderr)
@@ -266,8 +266,9 @@ def import_devign_modules(model_dir: Optional[Path] = None):
 # Try initial import (might fail if modules not downloaded yet)
 DEVIGN_AVAILABLE = False
 IMPORT_ERROR = "Not initialized"
-VulnerabilityDetector = None
+ModelWrapper = None
 InferenceConfig = None
+get_model_wrapper = None
 
 
 class VSCodeScanner:
@@ -315,13 +316,8 @@ class VSCodeScanner:
         if not self.vocab_file.exists():
             raise FileNotFoundError(f"vocab.json not found in {model_path}")
         
-        self.detector = VulnerabilityDetector(
-            model_path=str(self.model_file),
-            vocab_path=str(self.vocab_file),
-            config_path=str(self.config_file) if self.config_file.exists() else None,
-            device=device,
-            threshold=threshold
-        )
+        # Use get_model_wrapper to create the detector (singleton)
+        self.detector = get_model_wrapper()
     
     def _find_model_file(self, model_dir: Path) -> Optional[Path]:
         """Find the best model file in directory or models/ subdirectory."""
@@ -386,52 +382,34 @@ class VSCodeScanner:
             by_functions: If True, analyze each function separately (more accurate)
         """
         try:
-            if by_functions:
-                # Use function-level analysis for more accurate results
-                result = self.detector.analyze_file_by_functions(file_path)
-                
-                # Find line numbers of dangerous APIs
-                dangerous_lines = self._find_dangerous_lines(file_path)
-                
-                # Map dangerous_lines to functions
-                for dl in dangerous_lines:
-                    for func in result.get("function_results", []):
-                        if func["start_line"] <= dl["line"] <= func["end_line"]:
-                            dl["function"] = func["function_name"]
-                            # Use function's risk level if higher
-                            if func["vulnerable"]:
-                                dl["model_detected"] = True
-                            break
-                
-                return {
-                    "file_path": file_path,
-                    "analysis_mode": result.get("analysis_mode", "function_level"),
-                    "vulnerable": result["summary"]["overall_vulnerable"],
-                    "probability": result["summary"]["max_probability"],
-                    "risk_level": result["summary"]["overall_risk_level"],
-                    "dangerous_apis": self._collect_dangerous_apis(result),
-                    "dangerous_lines": dangerous_lines,
-                    "function_results": result.get("function_results", []),
-                    "summary": result["summary"],
-                    "error": None
-                }
-            else:
-                # Legacy file-level analysis
-                result = self.detector.analyze_file(file_path)
-                dangerous_lines = self._find_dangerous_lines(file_path)
-                
-                return {
-                    "file_path": file_path,
-                    "analysis_mode": "file_level",
-                    "vulnerable": result.vulnerable,
-                    "probability": result.probability,
-                    "risk_level": result.risk_level,
-                    "dangerous_apis": result.details.get("dangerous_apis_found", []),
-                    "dangerous_lines": dangerous_lines,
-                    "function_results": [],
-                    "summary": {},
-                    "error": None
-                }
+            # Read file content
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                code = f.read()
+            
+            # Use model to predict
+            result = self.detector.predict(code)
+            
+            # Find line numbers of dangerous APIs
+            dangerous_lines = self._find_dangerous_lines(file_path)
+            
+            # Determine risk level based on score
+            risk_level = self._get_risk_level(result.score)
+            
+            return {
+                "file_path": file_path,
+                "analysis_mode": "file_level",
+                "vulnerable": result.vulnerable,
+                "probability": result.score,
+                "risk_level": risk_level,
+                "dangerous_apis": result.detected_patterns,
+                "dangerous_lines": dangerous_lines,
+                "function_results": [],
+                "summary": {
+                    "confidence": result.confidence,
+                    "threshold": result.threshold
+                },
+                "error": None
+            }
         except Exception as e:
             return {
                 "file_path": file_path,
@@ -446,12 +424,18 @@ class VSCodeScanner:
                 "error": str(e)
             }
     
-    def _collect_dangerous_apis(self, result: Dict[str, Any]) -> List[str]:
-        """Collect all dangerous APIs from function results."""
-        apis = set()
-        for func in result.get("function_results", []):
-            apis.update(func.get("dangerous_apis", []))
-        return list(apis)
+    def _get_risk_level(self, score: float) -> str:
+        """Convert probability score to risk level."""
+        if score >= 0.8:
+            return "CRITICAL"
+        elif score >= 0.6:
+            return "HIGH"
+        elif score >= 0.4:
+            return "MEDIUM"
+        elif score >= 0.2:
+            return "LOW"
+        else:
+            return "SAFE"
     
     def _find_dangerous_lines(self, file_path: str) -> List[Dict[str, Any]]:
         """Find line numbers containing dangerous APIs and patterns.
