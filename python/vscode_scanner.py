@@ -165,20 +165,38 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
                 safe_extract(zf, model_dir)
             zip_path.unlink()
             
-            # Check if models are in a subdirectory
-            for subdir in model_dir.iterdir():
-                if subdir.is_dir():
-                    # Move files from subdirectory to model_dir
-                    for f in subdir.glob("*.pt"):
-                        shutil.move(str(f), str(model_dir / f.name))
-                    for f in subdir.glob("*.json"):
-                        if not (model_dir / f.name).exists():
-                            shutil.move(str(f), str(model_dir / f.name))
-                    # Check nested models directory
-                    nested_models = subdir / "models"
-                    if nested_models.exists():
-                        for f in nested_models.glob("*"):
-                            shutil.move(str(f), str(model_dir / f.name))
+            # Check if contents are in a subdirectory (e.g., devign-scanner/)
+            # and move everything to model_dir
+            for subdir in list(model_dir.iterdir()):
+                if subdir.is_dir() and subdir.name not in ['devign_infer', 'config', 'models']:
+                    # This is likely the root folder from zip (e.g., devign-scanner/)
+                    print(f"Moving contents from {subdir.name}/ to model_dir...", file=sys.stderr)
+                    
+                    # Move all contents from subdir to model_dir
+                    for item in subdir.iterdir():
+                        dest = model_dir / item.name
+                        if not dest.exists():
+                            shutil.move(str(item), str(dest))
+                        elif item.is_dir():
+                            # Merge directories
+                            for sub_item in item.iterdir():
+                                sub_dest = dest / sub_item.name
+                                if not sub_dest.exists():
+                                    shutil.move(str(sub_item), str(sub_dest))
+                    
+                    # Remove empty subdir
+                    try:
+                        shutil.rmtree(str(subdir))
+                    except:
+                        pass
+            
+            # If models are in a nested 'models' folder, move .pt files up
+            nested_models = model_dir / "models"
+            if nested_models.exists() and nested_models.is_dir():
+                for f in nested_models.glob("*.pt"):
+                    dest = model_dir / f.name
+                    if not dest.exists():
+                        shutil.move(str(f), str(dest))
             
             print("Models extracted successfully!", file=sys.stderr)
         except Exception as e:
