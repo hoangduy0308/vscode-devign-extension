@@ -52,7 +52,7 @@ export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode>,
 
     private results: ScanResult[] = [];
     private lastScanTime: Date | null = null;
-    private modelsVersion: string = 'v1.0.0';
+    private modelsVersion: string = 'latest';
     private totalIssues: number = 0;
     
     // Gate status integration

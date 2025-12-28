@@ -25,7 +25,7 @@ DEVIGN_PIPELINE_DIR = SCRIPT_DIR.parent.parent / "devign_pipeline"
 
 # GitHub Release configuration
 GITHUB_REPO = "hoangduy0308/C-Vul-Devign"
-GITHUB_RELEASE_TAG = "v1.0.0"
+GITHUB_RELEASE_TAG = "latest"
 MODEL_FILES = ["best_v2_seed42.pt", "vocab.json", "config.json", "feature_stats.json"]
 MODEL_ZIP_NAME = "devign-scanner.zip"  # Main zip with models
 

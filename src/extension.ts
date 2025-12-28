@@ -580,9 +580,9 @@ async function runDoctor() {
     // Check in cache directory (where models are auto-downloaded)
     let cacheModelDir: string;
     if (process.platform === 'win32') {
-        cacheModelDir = path.join(process.env.LOCALAPPDATA || '', 'devign-scanner', 'models', 'v1.0.0');
+        cacheModelDir = path.join(process.env.LOCALAPPDATA || '', 'devign-scanner', 'models', 'latest');
     } else {
-        cacheModelDir = path.join(process.env.HOME || '', '.cache', 'devign-scanner', 'models', 'v1.0.0');
+        cacheModelDir = path.join(process.env.HOME || '', '.cache', 'devign-scanner', 'models', 'latest');
     }
     const checkModelDir = modelPath || cacheModelDir;
     log(`  Cache directory: ${checkModelDir}`);
@@ -831,7 +831,7 @@ async function clearCacheAndUpdate(context: vscode.ExtensionContext) {
         await downloadModels(context);
         
         // Update sidebar status
-        sidebarProvider.setStatus({ modelsVersion: 'v1.0.0 (fresh)' });
+        sidebarProvider.setStatus({ modelsVersion: 'latest (fresh)' });
         sidebarProvider.refresh();
         
         vscode.window.showInformationMessage('Devign: Cache cleared and models updated');
