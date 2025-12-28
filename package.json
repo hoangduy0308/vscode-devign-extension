@@ -173,6 +173,56 @@
           "minimum": 10,
           "maximum": 600,
           "description": "Timeout in seconds for scanning a single file"
+        },
+        "devign.gate.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable git gate policy to block/warn on vulnerabilities"
+        },
+        "devign.gate.blockThreshold": {
+          "type": "number",
+          "default": 0.8,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Vulnerability probability threshold for blocking (0.0 - 1.0)"
+        },
+        "devign.gate.warnThreshold": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Vulnerability probability threshold for warnings (0.0 - 1.0)"
+        },
+        "devign.gate.maxCriticalFindings": {
+          "type": "number",
+          "default": 0,
+          "minimum": -1,
+          "description": "Maximum critical findings before blocking (-1 to disable)"
+        },
+        "devign.gate.maxHighFindings": {
+          "type": "number",
+          "default": 3,
+          "minimum": -1,
+          "description": "Maximum high severity findings before blocking (-1 to disable)"
+        },
+        "devign.gate.fallbackMode": {
+          "type": "string",
+          "enum": ["allow", "warn", "block"],
+          "default": "warn",
+          "description": "Action when scan fails or times out"
+        },
+        "devign.gate.timeoutSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 10,
+          "maximum": 600,
+          "description": "Gate scan timeout in seconds"
+        },
+        "devign.gate.allowedFilePatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Glob patterns for files to skip during gate scanning"
         }
       }
     },
