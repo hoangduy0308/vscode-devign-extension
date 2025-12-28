@@ -3,6 +3,7 @@ import { DevignScanner, ScanResult } from '../scanner';
 import { GitService, FileChange } from './gitService';
 import { GatePolicyService, GateResult, GatePolicyConfig, DEVIGN_DISCLAIMER } from './gatePolicy';
 import { FunctionScannerService, FunctionInfo, FunctionScanResult } from './functionScanner';
+import { GateStatusService, getGateStatusService } from './gateStatusService';
 
 export type GateScope = 'commit' | 'push';
 
@@ -46,6 +47,7 @@ export class SecurityGateService {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private isRunning = false;
     private currentCancellation: vscode.CancellationTokenSource | null = null;
+    private gateStatusService: GateStatusService;
 
     constructor(
         context: vscode.ExtensionContext,
@@ -57,7 +59,9 @@ export class SecurityGateService {
         this.scanner = scanner;
         this.functionScanner = new FunctionScannerService(scanner);
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('devign-gate');
+        this.gateStatusService = getGateStatusService();
         context.subscriptions.push(this.diagnosticCollection);
+        context.subscriptions.push(this.gateStatusService);
     }
 
     isGateEnabled(): boolean {
@@ -96,22 +100,41 @@ export class SecurityGateService {
         this.currentCancellation = new vscode.CancellationTokenSource();
         const cancellationToken = options.cancellationToken || this.currentCancellation.token;
 
+        // Notify gate status service that run has started
+        this.gateStatusService.notifyRunStarted(options.scope);
+
         try {
             const policy = this.policyService.loadPolicy();
             options.progressCallback?.('Loading policy...', 5);
+            this.gateStatusService.notifyProgress({
+                message: 'Loading policy...',
+                percentage: 5
+            });
 
             this.checkCancellation(cancellationToken);
 
             options.progressCallback?.('Getting staged files...', 10);
+            this.gateStatusService.notifyProgress({
+                message: 'Getting staged files...',
+                percentage: 10
+            });
             const changedFiles = await this.getFilesToScan(policy);
 
             if (changedFiles.length === 0) {
-                return this.createEmptyResult(policy, options.scope, startTime);
+                const result = this.createEmptyResult(policy, options.scope, startTime);
+                this.gateStatusService.notifyRunCompleted(result);
+                return result;
             }
 
             this.checkCancellation(cancellationToken);
 
             options.progressCallback?.(`Found ${changedFiles.length} C/C++ file(s) to scan`, 15);
+            this.gateStatusService.notifyProgress({
+                message: `Found ${changedFiles.length} C/C++ file(s) to scan`,
+                percentage: 15,
+                totalFiles: changedFiles.length,
+                filesScanned: 0
+            });
 
             const fileResults: FileChangeResult[] = [];
             const allScanResults: ScanResult[] = [];
@@ -120,10 +143,19 @@ export class SecurityGateService {
             const progressPerFile = 70 / changedFiles.length;
             let currentProgress = 20;
 
-            for (const file of changedFiles) {
+            for (let i = 0; i < changedFiles.length; i++) {
+                const file = changedFiles[i];
                 this.checkCancellation(cancellationToken);
 
-                options.progressCallback?.(`Scanning ${this.getBasename(file.filePath)}...`, currentProgress);
+                const fileName = this.getBasename(file.filePath);
+                options.progressCallback?.(`Scanning ${fileName}...`, currentProgress);
+                this.gateStatusService.notifyProgress({
+                    message: `Scanning ${fileName}...`,
+                    percentage: currentProgress,
+                    currentFile: fileName,
+                    totalFiles: changedFiles.length,
+                    filesScanned: i
+                });
 
                 const fileResult = await this.scanFile(file, cancellationToken);
                 fileResults.push(fileResult);
@@ -139,6 +171,12 @@ export class SecurityGateService {
             this.checkCancellation(cancellationToken);
 
             options.progressCallback?.('Evaluating results...', 90);
+            this.gateStatusService.notifyProgress({
+                message: 'Evaluating results...',
+                percentage: 90,
+                filesScanned: changedFiles.length,
+                totalFiles: changedFiles.length
+            });
 
             const endTime = new Date();
             const scanDurationMs = endTime.getTime() - startTime.getTime();
@@ -156,9 +194,20 @@ export class SecurityGateService {
             };
 
             options.progressCallback?.('Updating diagnostics...', 95);
+            this.gateStatusService.notifyProgress({
+                message: 'Updating diagnostics...',
+                percentage: 95
+            });
             this.updateDiagnostics(result);
 
             options.progressCallback?.('Gate check complete', 100);
+            this.gateStatusService.notifyProgress({
+                message: 'Gate check complete',
+                percentage: 100
+            });
+
+            // Notify gate status service that run has completed
+            this.gateStatusService.notifyRunCompleted(result);
 
             return result;
 
@@ -167,11 +216,15 @@ export class SecurityGateService {
             const scanDurationMs = endTime.getTime() - startTime.getTime();
 
             if (error instanceof Error && error.message === 'Cancelled') {
+                this.gateStatusService.notifyError(error, 'Gate scan was cancelled');
                 throw error;
             }
 
+            const errorObj = error instanceof Error ? error : new Error(String(error));
+            this.gateStatusService.notifyError(errorObj);
+
             const fallbackResult = this.policyService.evaluateFallback(
-                error instanceof Error ? error : new Error(String(error)),
+                errorObj,
                 scanDurationMs
             );
 
@@ -353,6 +406,13 @@ export class SecurityGateService {
 
     clearDiagnostics(): void {
         this.diagnosticCollection.clear();
+    }
+
+    /**
+     * Gets the gate status service for subscribing to status events
+     */
+    getStatusService(): GateStatusService {
+        return this.gateStatusService;
     }
 
     formatResultSummary(result: AggregatedGateResult): string {

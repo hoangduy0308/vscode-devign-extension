@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { ScanResult } from './scanner';
 import { DangerousLine } from './decorations';
+import { GateStatusService, getGateStatusService } from './services/gateStatusService';
+import { GateStatus, GateStatusChangedEvent, GateProgressUpdatedEvent } from './models/gateStatus';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -42,7 +44,7 @@ const SEVERITY_ICONS: Record<string, { icon: string; color: string }> = {
 // DevignSidebarProvider
 // ─────────────────────────────────────────────────────────────────────────────
 
-export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode> {
+export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode>, vscode.Disposable {
     private _onDidChangeTreeData: vscode.EventEmitter<TreeNode | undefined | null | void> = 
         new vscode.EventEmitter<TreeNode | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<TreeNode | undefined | null | void> = 
@@ -52,8 +54,32 @@ export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode> 
     private lastScanTime: Date | null = null;
     private modelsVersion: string = 'v1.0.0';
     private totalIssues: number = 0;
+    
+    // Gate status integration
+    private gateStatusService: GateStatusService;
+    private gateStatus: GateStatus | null = null;
+    private disposables: vscode.Disposable[] = [];
 
-    constructor() {}
+    constructor() {
+        // Subscribe to gate status events
+        this.gateStatusService = getGateStatusService();
+        
+        this.disposables.push(
+            this.gateStatusService.onStatusChanged((event: GateStatusChangedEvent) => {
+                this.gateStatus = event.status;
+                this.refresh();
+            }),
+            this.gateStatusService.onProgressUpdated((event: GateProgressUpdatedEvent) => {
+                // Refresh to show progress in status section
+                this.refresh();
+            })
+        );
+    }
+
+    dispose(): void {
+        this.disposables.forEach(d => d.dispose());
+        this._onDidChangeTreeData.dispose();
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Public API
@@ -83,6 +109,21 @@ export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode> 
             this.totalIssues = status.totalIssues;
         }
         this.refresh();
+    }
+
+    /**
+     * Sets the gate status directly (for manual updates)
+     */
+    setGateStatus(status: GateStatus): void {
+        this.gateStatus = status;
+        this.refresh();
+    }
+
+    /**
+     * Gets the current gate status
+     */
+    getGateStatus(): GateStatus | null {
+        return this.gateStatus;
     }
 
     refresh(): void {
@@ -307,33 +348,89 @@ export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode> 
             ? this.formatDateTime(this.lastScanTime)
             : 'Never';
 
+        const children: TreeNode[] = [
+            {
+                type: 'status',
+                label: `Models: ${this.modelsVersion}`,
+                icon: 'package',
+                tooltip: 'Currently loaded model version'
+            },
+            {
+                type: 'status',
+                label: `Last scan: ${lastScanDisplay}`,
+                icon: 'clock',
+                tooltip: this.lastScanTime
+                    ? `Last scan completed at ${this.lastScanTime.toLocaleString()}`
+                    : 'No scans have been performed yet'
+            },
+            {
+                type: 'status',
+                label: `Issues found: ${this.totalIssues}`,
+                icon: this.totalIssues > 0 ? 'bug' : 'check',
+                tooltip: this.totalIssues > 0
+                    ? `${this.totalIssues} potential vulnerabilit${this.totalIssues !== 1 ? 'ies' : 'y'} detected`
+                    : 'No issues detected in the last scan'
+            }
+        ];
+
+        // Add gate status information if available
+        if (this.gateStatus) {
+            children.push({ type: 'status', label: '', icon: 'dash' }); // Separator
+            
+            if (this.gateStatus.isRunning) {
+                children.push({
+                    type: 'status',
+                    label: '🔄 Gate: Running...',
+                    icon: 'sync~spin',
+                    tooltip: 'Security gate scan is in progress'
+                });
+            } else if (this.gateStatus.lastDecision) {
+                const decisionIcon = this.gateStatus.lastDecision === 'PASS' ? 'check' :
+                    this.gateStatus.lastDecision === 'WARN' ? 'warning' : 'error';
+                const decisionEmoji = this.gateStatus.lastDecision === 'PASS' ? '✅' :
+                    this.gateStatus.lastDecision === 'WARN' ? '⚠️' : '🚫';
+                
+                children.push({
+                    type: 'status',
+                    label: `${decisionEmoji} Gate: ${this.gateStatus.lastDecision}`,
+                    icon: decisionIcon,
+                    tooltip: `Last gate decision: ${this.gateStatus.lastDecision}`
+                });
+            }
+
+            if (this.gateStatus.lastRunTime) {
+                children.push({
+                    type: 'status',
+                    label: `Gate run: ${this.formatDateTime(this.gateStatus.lastRunTime)}`,
+                    icon: 'history',
+                    tooltip: `Last gate run at ${this.gateStatus.lastRunTime.toLocaleString()}`
+                });
+            }
+
+            if (this.gateStatus.scannedFilesCount > 0 || this.gateStatus.scannedFunctionsCount > 0) {
+                children.push({
+                    type: 'status',
+                    label: `Gate scanned: ${this.gateStatus.scannedFilesCount} files, ${this.gateStatus.scannedFunctionsCount} functions`,
+                    icon: 'file-code',
+                    tooltip: `Files: ${this.gateStatus.scannedFilesCount}, Functions: ${this.gateStatus.scannedFunctionsCount}`
+                });
+            }
+
+            if (this.gateStatus.blockingReasons.length > 0) {
+                children.push({
+                    type: 'status',
+                    label: `Blocking reasons: ${this.gateStatus.blockingReasons.length}`,
+                    icon: 'error',
+                    tooltip: this.gateStatus.blockingReasons.join('\n'),
+                    description: this.gateStatus.blockingReasons[0]
+                });
+            }
+        }
+
         return {
             type: 'section',
             label: '📊 Status',
-            children: [
-                {
-                    type: 'status',
-                    label: `Models: ${this.modelsVersion}`,
-                    icon: 'package',
-                    tooltip: 'Currently loaded model version'
-                },
-                {
-                    type: 'status',
-                    label: `Last scan: ${lastScanDisplay}`,
-                    icon: 'clock',
-                    tooltip: this.lastScanTime
-                        ? `Last scan completed at ${this.lastScanTime.toLocaleString()}`
-                        : 'No scans have been performed yet'
-                },
-                {
-                    type: 'status',
-                    label: `Issues found: ${this.totalIssues}`,
-                    icon: this.totalIssues > 0 ? 'bug' : 'check',
-                    tooltip: this.totalIssues > 0
-                        ? `${this.totalIssues} potential vulnerabilit${this.totalIssues !== 1 ? 'ies' : 'y'} detected`
-                        : 'No issues detected in the last scan'
-                }
-            ]
+            children
         };
     }
 
