@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
-DEVIGN_PIPELINE_DIR = SCRIPT_DIR.parent.parent / "devign_pipeline"
 
 # GitHub Release configuration
 GITHUB_REPO = "hoangduy0308/C-Vul-Devign"
@@ -95,14 +94,15 @@ def safe_extract(zip_file: zipfile.ZipFile, dest_dir: Path) -> None:
 
 
 def setup_import_paths(model_dir: Path) -> None:
-    """Setup Python import paths for devign modules."""
+    """Setup Python import paths for devign modules.
+    
+    Only uses modules from the downloaded zip to ensure consistent behavior
+    across different machines.
+    """
     # Add model_dir to path (contains devign_infer, src folders from zip)
+    # Insert at position 0 to prioritize downloaded modules over any local installations
     if str(model_dir) not in sys.path:
         sys.path.insert(0, str(model_dir))
-    
-    # Also try parent devign_pipeline if exists
-    if DEVIGN_PIPELINE_DIR.exists() and str(DEVIGN_PIPELINE_DIR) not in sys.path:
-        sys.path.insert(0, str(DEVIGN_PIPELINE_DIR))
 
 
 def download_file(url: str, dest: Path, show_progress: bool = True) -> bool:
@@ -197,16 +197,16 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
 
 
 def import_devign_modules(model_dir: Optional[Path] = None):
-    """Import devign modules after setting up paths."""
+    """Import devign modules after setting up paths.
+    
+    Only uses modules from the downloaded model_dir to ensure consistent
+    inference results across different machines.
+    """
     global DEVIGN_AVAILABLE, IMPORT_ERROR, VulnerabilityDetector, InferenceConfig
     
     # Setup paths if model_dir provided
     if model_dir:
         setup_import_paths(model_dir)
-    
-    # Also add local devign_pipeline if exists
-    if DEVIGN_PIPELINE_DIR.exists():
-        sys.path.insert(0, str(DEVIGN_PIPELINE_DIR))
     
     try:
         from devign_infer import VulnerabilityDetector, InferenceConfig
