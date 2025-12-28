@@ -179,6 +179,35 @@
           "default": false,
           "description": "Enable git gate policy to block/warn on vulnerabilities"
         },
+        "devign.gate.onCommit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run security gate before git commit"
+        },
+        "devign.gate.onPush": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run security gate before git push"
+        },
+        "devign.gate.scope": {
+          "type": "string",
+          "enum": ["staged", "staged+unstaged"],
+          "default": "staged",
+          "enumDescriptions": [
+            "Scan only staged files",
+            "Scan both staged and unstaged modified files"
+          ],
+          "description": "Which files to include in security gate scan"
+        },
+        "devign.gate.blockOnRiskLevels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+          },
+          "default": ["CRITICAL", "HIGH"],
+          "description": "Risk levels that will block commit/push"
+        },
         "devign.gate.blockThreshold": {
           "type": "number",
           "default": 0.8,

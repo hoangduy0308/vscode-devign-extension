@@ -29,6 +29,7 @@ interface RepositoryState {
     readonly remotes: Remote[];
     readonly workingTreeChanges: Change[];
     readonly indexChanges: Change[];
+    readonly mergeChanges: Change[];
 }
 
 interface Branch {
@@ -47,6 +48,51 @@ interface Change {
     readonly uri: vscode.Uri;
     readonly originalUri: vscode.Uri;
     readonly status: number;
+}
+
+/**
+ * Git change status codes from VS Code Git extension
+ */
+export enum GitChangeStatus {
+    Modified = 0,
+    Added = 1,
+    Deleted = 2,
+    Renamed = 3,
+    Copied = 4,
+    Untracked = 5,
+    Ignored = 6,
+    Conflict = 7
+}
+
+/**
+ * Normalized file change with status letter
+ */
+export interface FileChange {
+    filePath: string;
+    uri: vscode.Uri;
+    originalUri: vscode.Uri;
+    status: GitChangeStatus;
+    statusLetter: 'A' | 'M' | 'D' | 'R' | 'C' | 'U' | '?' | '!';
+}
+
+/**
+ * Repository state snapshot containing staged, unstaged, and merge changes
+ */
+export interface RepositorySnapshot {
+    /** Staged files (index changes) - ready for commit */
+    staged: FileChange[];
+    /** Unstaged files (working tree changes) - modified but not staged */
+    unstaged: FileChange[];
+    /** Merge conflict files */
+    mergeConflicts: FileChange[];
+    /** Whether repository is in merge state */
+    isMerging: boolean;
+    /** Repository root path */
+    rootPath: string;
+    /** Current branch name */
+    branchName: string | undefined;
+    /** Last commit hash */
+    commitHash: string | undefined;
 }
 
 /**
@@ -220,6 +266,119 @@ export class GitService {
         }
 
         return vscode.Disposable.from(...disposables);
+    }
+
+    /**
+     * Convert Git change status number to status letter
+     */
+    private statusToLetter(status: number): FileChange['statusLetter'] {
+        switch (status) {
+            case GitChangeStatus.Added: return 'A';
+            case GitChangeStatus.Modified: return 'M';
+            case GitChangeStatus.Deleted: return 'D';
+            case GitChangeStatus.Renamed: return 'R';
+            case GitChangeStatus.Copied: return 'C';
+            case GitChangeStatus.Untracked: return '?';
+            case GitChangeStatus.Ignored: return '!';
+            case GitChangeStatus.Conflict: return 'U';
+            default: return 'M';
+        }
+    }
+
+    /**
+     * Convert VS Code Git Change to normalized FileChange
+     */
+    private normalizeChange(change: Change): FileChange {
+        return {
+            filePath: change.uri.fsPath,
+            uri: change.uri,
+            originalUri: change.originalUri,
+            status: change.status as GitChangeStatus,
+            statusLetter: this.statusToLetter(change.status)
+        };
+    }
+
+    /**
+     * Get a snapshot of repository state including staged, unstaged, and merge changes.
+     * @param repo Optional specific repository. If not provided, uses active repository.
+     * @returns Repository snapshot or undefined if no repository available
+     */
+    public async getRepositorySnapshot(repo?: Repository): Promise<RepositorySnapshot | undefined> {
+        await this.ensureInitialized();
+
+        const repository = repo || await this.getActiveRepository();
+        if (!repository) {
+            console.log('GitService: Cannot get snapshot - no repository available');
+            return undefined;
+        }
+
+        const state = repository.state;
+        const mergeChanges = state.mergeChanges || [];
+
+        return {
+            staged: state.indexChanges.map(c => this.normalizeChange(c)),
+            unstaged: state.workingTreeChanges.map(c => this.normalizeChange(c)),
+            mergeConflicts: mergeChanges.map(c => this.normalizeChange(c)),
+            isMerging: mergeChanges.length > 0,
+            rootPath: repository.rootUri.fsPath,
+            branchName: state.HEAD?.name,
+            commitHash: state.HEAD?.commit
+        };
+    }
+
+    /**
+     * Get only staged C/C++ files ready for commit.
+     * @returns Array of FileChange for staged C/C++ files
+     */
+    public async getStagedCppFiles(): Promise<FileChange[]> {
+        const snapshot = await this.getRepositorySnapshot();
+        if (!snapshot) {
+            return [];
+        }
+
+        return snapshot.staged.filter(f => 
+            f.filePath.endsWith('.c') || 
+            f.filePath.endsWith('.cpp') || 
+            f.filePath.endsWith('.h') ||
+            f.filePath.endsWith('.hpp') ||
+            f.filePath.endsWith('.cc') ||
+            f.filePath.endsWith('.cxx')
+        );
+    }
+
+    /**
+     * Get all modified C/C++ files (staged + unstaged) based on gate scope.
+     * @param scope 'staged' for only staged files, 'staged+unstaged' for both
+     * @returns Array of FileChange for modified C/C++ files
+     */
+    public async getModifiedCppFiles(scope: 'staged' | 'staged+unstaged' = 'staged'): Promise<FileChange[]> {
+        const snapshot = await this.getRepositorySnapshot();
+        if (!snapshot) {
+            return [];
+        }
+
+        const isCppFile = (f: FileChange) =>
+            f.filePath.endsWith('.c') || 
+            f.filePath.endsWith('.cpp') || 
+            f.filePath.endsWith('.h') ||
+            f.filePath.endsWith('.hpp') ||
+            f.filePath.endsWith('.cc') ||
+            f.filePath.endsWith('.cxx');
+
+        if (scope === 'staged') {
+            return snapshot.staged.filter(isCppFile);
+        }
+
+        // Combine staged + unstaged, dedupe by file path
+        const allFiles = [...snapshot.staged, ...snapshot.unstaged];
+        const seen = new Set<string>();
+        return allFiles.filter(f => {
+            if (seen.has(f.filePath) || !isCppFile(f)) {
+                return false;
+            }
+            seen.add(f.filePath);
+            return true;
+        });
     }
 }
 

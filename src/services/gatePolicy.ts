@@ -1,8 +1,24 @@
 import * as vscode from 'vscode';
 import { ScanResult } from '../scanner';
 
+/**
+ * Important disclaimer about Devign model limitations.
+ * This should be shown to users on both PASS and FAIL results.
+ */
+export const DEVIGN_DISCLAIMER = 
+    'Devign checks vulnerabilities WITHIN individual functions only. ' +
+    'It does NOT track data flow across functions, call chains, or complex logic flows. ' +
+    'Treat results as best-effort signals, not proof of security.';
+
+export type GateScanScope = 'staged' | 'staged+unstaged';
+export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+
 export interface GatePolicyConfig {
     enabled: boolean;
+    onCommit: boolean;
+    onPush: boolean;
+    scope: GateScanScope;
+    blockOnRiskLevels: RiskLevel[];
     blockThreshold: number;
     warnThreshold: number;
     maxCriticalFindings: number;
@@ -22,12 +38,18 @@ export interface GateResult {
     warnedFindings: ScanResult[];
     scanDurationMs: number;
     policyUsed: GatePolicyConfig;
+    /** Disclaimer about model limitations - always included */
+    disclaimer: string;
 }
 
 export class GatePolicyService {
     getDefaultPolicy(): GatePolicyConfig {
         return {
             enabled: false,
+            onCommit: true,
+            onPush: false,
+            scope: 'staged',
+            blockOnRiskLevels: ['CRITICAL', 'HIGH'],
             blockThreshold: 0.8,
             warnThreshold: 0.5,
             maxCriticalFindings: 0,
@@ -44,6 +66,10 @@ export class GatePolicyService {
 
         return {
             enabled: config.get<boolean>('enabled') ?? defaults.enabled,
+            onCommit: config.get<boolean>('onCommit') ?? defaults.onCommit,
+            onPush: config.get<boolean>('onPush') ?? defaults.onPush,
+            scope: config.get<GateScanScope>('scope') ?? defaults.scope,
+            blockOnRiskLevels: config.get<RiskLevel[]>('blockOnRiskLevels') ?? defaults.blockOnRiskLevels,
             blockThreshold: config.get<number>('blockThreshold') ?? defaults.blockThreshold,
             warnThreshold: config.get<number>('warnThreshold') ?? defaults.warnThreshold,
             maxCriticalFindings: config.get<number>('maxCriticalFindings') ?? defaults.maxCriticalFindings,
@@ -117,7 +143,8 @@ export class GatePolicyService {
             blockedFindings,
             warnedFindings,
             scanDurationMs,
-            policyUsed: policy
+            policyUsed: policy,
+            disclaimer: DEVIGN_DISCLAIMER
         };
     }
 
@@ -132,7 +159,8 @@ export class GatePolicyService {
             blockedFindings: [],
             warnedFindings: [],
             scanDurationMs,
-            policyUsed: policy
+            policyUsed: policy,
+            disclaimer: DEVIGN_DISCLAIMER
         };
     }
 

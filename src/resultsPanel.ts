@@ -205,6 +205,19 @@ export class ResultsPanel {
             padding: 15px;
             margin: 20px 0;
         }
+        .disclaimer-box {
+            background-color: var(--vscode-inputValidation-warningBackground);
+            border-left: 4px solid var(--vscode-inputValidation-warningBorder);
+            padding: 12px 15px;
+            margin: 15px 0;
+            border-radius: 3px;
+        }
+        .disclaimer-box p {
+            margin: 8px 0 0 0;
+            font-size: 12px;
+            color: var(--vscode-foreground);
+            opacity: 0.9;
+        }
         .clear-btn {
             background-color: var(--vscode-button-secondaryBackground);
             color: var(--vscode-button-secondaryForeground);
@@ -237,6 +250,11 @@ export class ResultsPanel {
             <li>Right-click a C/C++ file and select "Devign: Scan Current File"</li>
             <li>Use Command Palette: "Devign: Scan Workspace"</li>
         </ul>
+    </div>
+
+    <div class="disclaimer-box">
+        <strong>⚠️ Limitation Notice:</strong>
+        <p>Devign checks vulnerabilities WITHIN individual functions only. It does NOT track data flow across functions, call chains, or complex logic flows. Treat results as best-effort signals, not proof of security.</p>
     </div>
 
     <div class="summary">
