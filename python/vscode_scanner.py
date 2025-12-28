@@ -194,6 +194,12 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
             # The _find_model_file method will look in models/ subdirectory
             
             print("Models extracted successfully!", file=sys.stderr)
+            
+            # Debug: list contents after extraction
+            print(f"Contents of {model_dir}:", file=sys.stderr)
+            for item in model_dir.iterdir():
+                print(f"  - {item.name} ({'dir' if item.is_dir() else 'file'})", file=sys.stderr)
+                
         except Exception as e:
             print(f"Failed to extract {MODEL_ZIP_NAME}: {e}", file=sys.stderr)
             return None
@@ -206,12 +212,18 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
     models_subdir = model_dir / "models"
     if models_subdir.exists():
         pt_files = list(models_subdir.glob("*.pt"))
+        print(f"Found {len(pt_files)} .pt files in models/", file=sys.stderr)
     else:
         pt_files = list(model_dir.glob("*.pt"))
+        print(f"Found {len(pt_files)} .pt files in root", file=sys.stderr)
     
-    if (model_dir / "vocab.json").exists() and pt_files:
+    vocab_exists = (model_dir / "vocab.json").exists()
+    print(f"vocab.json exists: {vocab_exists}", file=sys.stderr)
+    
+    if vocab_exists and pt_files:
         return model_dir
     
+    print(f"Verification failed - vocab: {vocab_exists}, pt_files: {len(pt_files)}", file=sys.stderr)
     return None
 
 
