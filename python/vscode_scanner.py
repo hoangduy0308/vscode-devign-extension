@@ -208,17 +208,19 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
         return None
     
     # Verify required files exist
-    # Check for .pt files in models/ subdirectory or root
+    # Check for .pt files and vocab.json in models/ subdirectory or root
     models_subdir = model_dir / "models"
     if models_subdir.exists():
         pt_files = list(models_subdir.glob("*.pt"))
         print(f"Found {len(pt_files)} .pt files in models/", file=sys.stderr)
+        vocab_path = models_subdir / "vocab.json"
     else:
         pt_files = list(model_dir.glob("*.pt"))
         print(f"Found {len(pt_files)} .pt files in root", file=sys.stderr)
+        vocab_path = model_dir / "vocab.json"
     
-    vocab_exists = (model_dir / "vocab.json").exists()
-    print(f"vocab.json exists: {vocab_exists}", file=sys.stderr)
+    vocab_exists = vocab_path.exists()
+    print(f"vocab.json exists at {vocab_path}: {vocab_exists}", file=sys.stderr)
     
     if vocab_exists and pt_files:
         return model_dir
@@ -305,8 +307,8 @@ class VSCodeScanner:
             raise ImportError(f"Devign modules not available: {IMPORT_ERROR}")
         
         self.model_file = self._find_model_file(model_path)
-        self.vocab_file = model_path / "vocab.json"
-        self.config_file = model_path / "config.json"
+        self.vocab_file = self._find_vocab_file(model_path)
+        self.config_file = self._find_config_file(model_path)
         
         if not self.model_file:
             raise FileNotFoundError(f"No model .pt file found in {model_path}")
@@ -347,6 +349,30 @@ class VSCodeScanner:
                     return f
         
         return pt_files[0]
+    
+    def _find_vocab_file(self, model_dir: Path) -> Path:
+        """Find vocab.json in directory or models/ subdirectory."""
+        # First check in models/ subdirectory
+        models_subdir = model_dir / "models"
+        if models_subdir.exists():
+            vocab_path = models_subdir / "vocab.json"
+            if vocab_path.exists():
+                return vocab_path
+        
+        # Fallback to root
+        return model_dir / "vocab.json"
+    
+    def _find_config_file(self, model_dir: Path) -> Path:
+        """Find config.json in directory or models/ subdirectory."""
+        # First check in models/ subdirectory
+        models_subdir = model_dir / "models"
+        if models_subdir.exists():
+            config_path = models_subdir / "config.json"
+            if config_path.exists():
+                return config_path
+        
+        # Fallback to root
+        return model_dir / "config.json"
     
     def is_c_file(self, path: str) -> bool:
         """Check if file is a C/C++ source file."""
