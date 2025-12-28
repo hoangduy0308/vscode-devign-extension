@@ -172,7 +172,8 @@ async function scanDocument(document: vscode.TextDocument, isAutoScan: boolean =
         
         const editor = vscode.window.activeTextEditor;
         if (editor && editor.document.uri.toString() === document.uri.toString()) {
-            if (result.dangerous_lines && result.dangerous_lines.length > 0) {
+            // Only show decorations if the file is confirmed vulnerable by the model
+            if (result.vulnerable && result.dangerous_lines && result.dangerous_lines.length > 0) {
                 decorationManager.applyDecorations(editor, result.dangerous_lines);
             } else {
                 decorationManager.clearDecorations(editor);
