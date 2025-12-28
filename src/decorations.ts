@@ -11,60 +11,52 @@ export interface DangerousLine {
     function?: string;
 }
 
-// Decoration types for different severity levels
+// Result from model prediction (file-level)
+export interface FileVulnerabilityResult {
+    vulnerable: boolean;
+    probability: number;
+    risk_level: string;
+    confidence: string;
+    detected_patterns: string[];
+}
+
+// Decoration types for different severity levels - now for whole file indication
 const criticalDecoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: 'rgba(255, 0, 0, 0.3)',
-    border: '1px solid #ff0000',
-    borderRadius: '3px',
+    backgroundColor: 'rgba(255, 0, 0, 0.15)',
+    isWholeLine: true,
     overviewRulerColor: '#ff0000',
-    overviewRulerLane: vscode.OverviewRulerLane.Right,
-    after: {
-        contentText: ' ⚠️ CRITICAL',
-        color: '#ff6b6b',
-        fontWeight: 'bold',
-        margin: '0 0 0 10px'
-    }
+    overviewRulerLane: vscode.OverviewRulerLane.Full,
 });
 
 const highDecoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: 'rgba(255, 165, 0, 0.25)',
-    border: '1px solid #ff9800',
-    borderRadius: '3px',
+    backgroundColor: 'rgba(255, 165, 0, 0.12)',
+    isWholeLine: true,
     overviewRulerColor: '#ff9800',
-    overviewRulerLane: vscode.OverviewRulerLane.Right,
-    after: {
-        contentText: ' ⚠️ HIGH',
-        color: '#ffa726',
-        fontWeight: 'bold',
-        margin: '0 0 0 10px'
-    }
+    overviewRulerLane: vscode.OverviewRulerLane.Full,
 });
 
 const mediumDecoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: 'rgba(255, 235, 59, 0.2)',
-    border: '1px solid #ffeb3b',
-    borderRadius: '3px',
+    backgroundColor: 'rgba(255, 235, 59, 0.1)',
+    isWholeLine: true,
     overviewRulerColor: '#ffeb3b',
-    overviewRulerLane: vscode.OverviewRulerLane.Right,
-    after: {
-        contentText: ' ⚡ MEDIUM',
-        color: '#fdd835',
-        margin: '0 0 0 10px'
-    }
+    overviewRulerLane: vscode.OverviewRulerLane.Full,
 });
 
 const lowDecoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: 'rgba(33, 150, 243, 0.15)',
-    border: '1px solid #2196f3',
-    borderRadius: '3px',
+    backgroundColor: 'rgba(33, 150, 243, 0.08)',
+    isWholeLine: true,
     overviewRulerColor: '#2196f3',
-    overviewRulerLane: vscode.OverviewRulerLane.Right,
+    overviewRulerLane: vscode.OverviewRulerLane.Full,
 });
 
-// Underline decoration for the specific API call
-const apiUnderlineDecoration = vscode.window.createTextEditorDecorationType({
-    textDecoration: 'underline wavy #ff0000',
-    fontWeight: 'bold'
+// Banner decoration at top of file
+const vulnerabilityBannerDecoration = vscode.window.createTextEditorDecorationType({
+    isWholeLine: true,
+    after: {
+        contentText: '',
+        margin: '0 0 0 20px',
+        fontWeight: 'bold'
+    }
 });
 
 export class DecorationManager {
@@ -80,15 +72,82 @@ export class DecorationManager {
         return DecorationManager.instance;
     }
     
+    /**
+     * Apply decorations for file-level vulnerability result.
+     * Highlights the entire file with appropriate severity color.
+     */
+    public applyFileVulnerabilityDecoration(
+        editor: vscode.TextEditor, 
+        result: FileVulnerabilityResult
+    ): void {
+        if (!result.vulnerable) {
+            this.clearDecorations(editor);
+            return;
+        }
+        
+        // Create range for entire file
+        const lastLine = editor.document.lineCount - 1;
+        const fullRange = new vscode.Range(0, 0, lastLine, editor.document.lineAt(lastLine).text.length);
+        
+        const patternsText = result.detected_patterns.length > 0 
+            ? `\n\n**Detected patterns:** ${result.detected_patterns.join(', ')}`
+            : '';
+        
+        const hoverMessage = new vscode.MarkdownString(
+            `## 🛡️ Devign Vulnerability Detection\n\n` +
+            `**Risk Level:** ${this.getSeverityEmoji(result.risk_level)} **${result.risk_level}**\n\n` +
+            `**Probability:** ${(result.probability * 100).toFixed(1)}%\n\n` +
+            `**Confidence:** ${result.confidence}` +
+            patternsText +
+            `\n\n---\n` +
+            `*This is a file-level prediction by the Devign AI model. ` +
+            `The model analyzes the entire code structure to detect potential vulnerabilities.*`
+        );
+        
+        const decorationOptions: vscode.DecorationOptions[] = [{
+            range: fullRange,
+            hoverMessage: hoverMessage
+        }];
+        
+        // Clear all first
+        this.clearDecorations(editor);
+        
+        // Apply appropriate severity decoration
+        switch (result.risk_level) {
+            case 'CRITICAL':
+                editor.setDecorations(criticalDecoration, decorationOptions);
+                break;
+            case 'HIGH':
+                editor.setDecorations(highDecoration, decorationOptions);
+                break;
+            case 'MEDIUM':
+                editor.setDecorations(mediumDecoration, decorationOptions);
+                break;
+            case 'LOW':
+                editor.setDecorations(lowDecoration, decorationOptions);
+                break;
+        }
+        
+        this.decoratedEditors.set(editor.document.uri.toString(), true);
+    }
+    
+    /**
+     * Legacy method for line-level decorations (kept for compatibility)
+     */
     public applyDecorations(editor: vscode.TextEditor, dangerousLines: DangerousLine[]): void {
+        // If no dangerous lines, clear decorations
+        if (!dangerousLines || dangerousLines.length === 0) {
+            this.clearDecorations(editor);
+            return;
+        }
+        
         const criticalRanges: vscode.DecorationOptions[] = [];
         const highRanges: vscode.DecorationOptions[] = [];
         const mediumRanges: vscode.DecorationOptions[] = [];
         const lowRanges: vscode.DecorationOptions[] = [];
-        const apiRanges: vscode.DecorationOptions[] = [];
         
         for (const item of dangerousLines) {
-            const lineIndex = item.line - 1; // VS Code uses 0-based line numbers
+            const lineIndex = item.line - 1;
             
             if (lineIndex < 0 || lineIndex >= editor.document.lineCount) {
                 continue;
@@ -96,14 +155,6 @@ export class DecorationManager {
             
             const line = editor.document.lineAt(lineIndex);
             const lineRange = line.range;
-            
-            // Create range for the API call itself
-            const apiRange = new vscode.Range(
-                lineIndex,
-                item.column_start,
-                lineIndex,
-                item.column_end
-            );
             
             const decorationOptions: vscode.DecorationOptions = {
                 range: lineRange,
@@ -117,13 +168,6 @@ export class DecorationManager {
                 )
             };
             
-            // Add underline to specific API
-            apiRanges.push({
-                range: apiRange,
-                hoverMessage: new vscode.MarkdownString(`⚠️ **${item.api}()** - ${item.message}`)
-            });
-            
-            // Add to appropriate severity array
             switch (item.severity) {
                 case 'CRITICAL':
                     criticalRanges.push(decorationOptions);
@@ -140,12 +184,10 @@ export class DecorationManager {
             }
         }
         
-        // Apply decorations
         editor.setDecorations(criticalDecoration, criticalRanges);
         editor.setDecorations(highDecoration, highRanges);
         editor.setDecorations(mediumDecoration, mediumRanges);
         editor.setDecorations(lowDecoration, lowRanges);
-        editor.setDecorations(apiUnderlineDecoration, apiRanges);
         
         this.decoratedEditors.set(editor.document.uri.toString(), true);
     }
@@ -155,7 +197,7 @@ export class DecorationManager {
         editor.setDecorations(highDecoration, []);
         editor.setDecorations(mediumDecoration, []);
         editor.setDecorations(lowDecoration, []);
-        editor.setDecorations(apiUnderlineDecoration, []);
+        editor.setDecorations(vulnerabilityBannerDecoration, []);
         
         this.decoratedEditors.delete(editor.document.uri.toString());
     }
@@ -188,5 +230,5 @@ export function disposeDecorations(): void {
     highDecoration.dispose();
     mediumDecoration.dispose();
     lowDecoration.dispose();
-    apiUnderlineDecoration.dispose();
+    vulnerabilityBannerDecoration.dispose();
 }

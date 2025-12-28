@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { DevignScanner, ScanResult } from './scanner';
 import { ResultsPanel } from './resultsPanel';
-import { DecorationManager, DangerousLine, disposeDecorations } from './decorations';
+import { DecorationManager, DangerousLine, FileVulnerabilityResult, disposeDecorations } from './decorations';
 import { DevignSidebarProvider } from './sidebarProvider';
 
 let scanner: DevignScanner;
@@ -180,9 +180,15 @@ async function scanDocument(document: vscode.TextDocument, isAutoScan: boolean =
         
         const editor = vscode.window.activeTextEditor;
         if (editor && editor.document.uri.toString() === document.uri.toString()) {
-            // Only show decorations if the file is confirmed vulnerable by the model
-            if (result.vulnerable && result.dangerous_lines && result.dangerous_lines.length > 0) {
-                decorationManager.applyDecorations(editor, result.dangerous_lines);
+            // Apply file-level vulnerability decoration (honest about what model detects)
+            if (result.vulnerable) {
+                decorationManager.applyFileVulnerabilityDecoration(editor, {
+                    vulnerable: result.vulnerable,
+                    probability: result.probability,
+                    risk_level: result.risk_level,
+                    confidence: result.summary?.confidence || 'unknown',
+                    detected_patterns: result.dangerous_apis || []
+                });
             } else {
                 decorationManager.clearDecorations(editor);
             }
@@ -196,7 +202,7 @@ async function scanDocument(document: vscode.TextDocument, isAutoScan: boolean =
         sidebarProvider.setResults([result]);
         sidebarProvider.setStatus({ 
             lastScanTime: new Date(),
-            totalIssues: result.dangerous_lines?.length || (result.vulnerable ? 1 : 0)
+            totalIssues: result.vulnerable ? 1 : 0
         });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -340,7 +346,7 @@ async function scanWorkspace() {
 
             // Update sidebar
             sidebarProvider.setResults(results);
-            const totalIssues = results.reduce((sum, r) => sum + (r.dangerous_lines?.length || (r.vulnerable ? 1 : 0)), 0);
+            const totalIssues = results.filter(r => r.vulnerable).length;
             sidebarProvider.setStatus({
                 lastScanTime: new Date(),
                 totalIssues

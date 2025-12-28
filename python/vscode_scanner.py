@@ -379,18 +379,15 @@ class VSCodeScanner:
         
         Args:
             file_path: Path to the C/C++ source file
-            by_functions: If True, analyze each function separately (more accurate)
+            by_functions: Ignored - model predicts on entire file
         """
         try:
             # Read file content
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 code = f.read()
             
-            # Use model to predict
+            # Use model to predict on entire file
             result = self.detector.predict(code)
-            
-            # Find line numbers of dangerous APIs
-            dangerous_lines = self._find_dangerous_lines(file_path)
             
             # Determine risk level based on score
             risk_level = self._get_risk_level(result.score)
@@ -402,7 +399,7 @@ class VSCodeScanner:
                 "probability": result.score,
                 "risk_level": risk_level,
                 "dangerous_apis": result.detected_patterns,
-                "dangerous_lines": dangerous_lines,
+                "dangerous_lines": [],  # Empty - model predicts on whole file, not individual lines
                 "function_results": [],
                 "summary": {
                     "confidence": result.confidence,
@@ -436,123 +433,6 @@ class VSCodeScanner:
             return "LOW"
         else:
             return "SAFE"
-    
-    def _find_dangerous_lines(self, file_path: str) -> List[Dict[str, Any]]:
-        """Find line numbers containing dangerous APIs and patterns.
-        
-        Skips comments (single-line // and multi-line /* */) to avoid false positives.
-        """
-        dangerous_lines = []
-        
-        # Dangerous APIs that often cause vulnerabilities
-        dangerous_apis = [
-            'strcpy', 'strcat', 'sprintf', 'vsprintf', 'gets', 'scanf',
-            'sscanf', 'fscanf', 'memcpy', 'memmove', 'strncpy', 'strncat',
-            'malloc', 'calloc', 'realloc', 'free', 'alloca'
-        ]
-        
-        # Patterns for potential vulnerabilities
-        patterns = [
-            (r'\b(strcpy|strcat|sprintf|gets)\s*\(', 'CRITICAL', 'Buffer overflow risk - use safe alternatives'),
-            (r'\bmalloc\s*\([^)]+\)\s*;(?!.*if)', 'HIGH', 'Unchecked malloc return value'),
-            (r'\*\s*\w+\s*=', 'MEDIUM', 'Potential null pointer dereference'),
-            (r'\[\s*\w+\s*\]', 'LOW', 'Array access - ensure bounds checking'),
-            (r'\bfree\s*\(\s*\w+\s*\)', 'MEDIUM', 'Free without null check'),
-            (r'\b(memcpy|memmove)\s*\(', 'MEDIUM', 'Memory copy - verify buffer sizes'),
-        ]
-        
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-            
-            import re
-            
-            in_multiline_comment = False
-            
-            for line_num, line in enumerate(lines, 1):
-                # Track multi-line comment state
-                # Handle /* */ comments that may span multiple lines
-                temp_line = line
-                code_part = ""
-                
-                i = 0
-                while i < len(temp_line):
-                    if in_multiline_comment:
-                        # Look for end of multi-line comment
-                        end_idx = temp_line.find('*/', i)
-                        if end_idx != -1:
-                            in_multiline_comment = False
-                            i = end_idx + 2
-                        else:
-                            # Rest of line is comment
-                            break
-                    else:
-                        # Look for start of comments
-                        single_comment = temp_line.find('//', i)
-                        multi_comment = temp_line.find('/*', i)
-                        
-                        if single_comment != -1 and (multi_comment == -1 or single_comment < multi_comment):
-                            # Single-line comment - rest of line is comment
-                            code_part += temp_line[i:single_comment]
-                            break
-                        elif multi_comment != -1:
-                            # Multi-line comment starts
-                            code_part += temp_line[i:multi_comment]
-                            end_idx = temp_line.find('*/', multi_comment + 2)
-                            if end_idx != -1:
-                                # Comment ends on same line
-                                i = end_idx + 2
-                            else:
-                                # Comment continues to next line
-                                in_multiline_comment = True
-                                break
-                        else:
-                            # No comments found, rest is code
-                            code_part += temp_line[i:]
-                            break
-                
-                # Skip if no actual code (entire line is comment)
-                if not code_part.strip():
-                    continue
-                
-                # Check for dangerous API calls in code part only
-                for api in dangerous_apis:
-                    match = re.search(rf'\b{api}\s*\(', code_part)
-                    if match:
-                        # Determine severity based on API
-                        if api in ['strcpy', 'strcat', 'sprintf', 'gets', 'scanf']:
-                            severity = 'CRITICAL'
-                            message = f'Dangerous function {api}() - high risk of buffer overflow'
-                        elif api in ['malloc', 'calloc', 'realloc']:
-                            severity = 'HIGH'
-                            message = f'Memory allocation {api}() - check return value and free properly'
-                        elif api == 'free':
-                            severity = 'MEDIUM'
-                            message = 'free() call - ensure pointer is valid and set to NULL after'
-                        else:
-                            severity = 'MEDIUM'
-                            message = f'Potentially dangerous function {api}()'
-                        
-                        # Find column position in original line
-                        orig_match = re.search(rf'\b{api}\s*\(', line)
-                        col_start = orig_match.start() if orig_match else 0
-                        col_end = orig_match.end() if orig_match else len(line)
-                        
-                        dangerous_lines.append({
-                            'line': line_num,
-                            'column_start': col_start,
-                            'column_end': col_end,
-                            'severity': severity,
-                            'api': api,
-                            'message': message,
-                            'code': line.strip()
-                        })
-                        break  # One finding per line
-                        
-        except Exception as e:
-            pass  # Silently fail if file can't be read
-        
-        return dangerous_lines
     
     def scan_code(self, code: str) -> Dict[str, Any]:
         """Scan code snippet for vulnerabilities."""

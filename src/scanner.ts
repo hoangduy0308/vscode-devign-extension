@@ -12,6 +12,10 @@ export interface ScanResult {
     risk_level: string;
     dangerous_apis: string[];
     dangerous_lines: DangerousLine[];
+    summary?: {
+        confidence?: string;
+        threshold?: number;
+    };
     error?: string;
 }
 
