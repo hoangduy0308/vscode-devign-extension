@@ -646,41 +646,34 @@ export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode>,
         const grouped = new Map<string, FindingInfo[]>();
 
         for (const result of this.results) {
-            if (!result.vulnerable || !result.dangerous_lines) {
+            if (!result.vulnerable) {
                 continue;
             }
 
-            for (const line of result.dangerous_lines) {
-                const finding: FindingInfo = {
-                    filePath: result.file_path,
-                    line: line.line,
-                    column: line.column_start,
-                    severity: line.severity,
-                    api: line.api,
-                    functionName: line.function,
-                    probability: result.probability,
-                    message: line.message
-                };
+            // File-level finding (model predicts on entire file)
+            const finding: FindingInfo = {
+                filePath: result.file_path,
+                line: 1,  // File-level, point to first line
+                column: 0,
+                severity: result.risk_level,
+                api: result.dangerous_apis?.join(', ') || 'AI Detection',
+                functionName: undefined,
+                probability: result.probability,
+                message: `File-level vulnerability detected (${(result.probability * 100).toFixed(1)}% confidence)`
+            };
 
-                const severity = line.severity || 'LOW';
-                if (!grouped.has(severity)) {
-                    grouped.set(severity, []);
-                }
-                grouped.get(severity)!.push(finding);
+            const severity = result.risk_level || 'LOW';
+            if (!grouped.has(severity)) {
+                grouped.set(severity, []);
             }
+            grouped.get(severity)!.push(finding);
         }
 
         return grouped;
     }
 
     private countTotalIssues(results: ScanResult[]): number {
-        let count = 0;
-        for (const result of results) {
-            if (result.vulnerable && result.dangerous_lines) {
-                count += result.dangerous_lines.length;
-            }
-        }
-        return count;
+        return results.filter(r => r.vulnerable).length;
     }
 
     private formatDateTime(date: Date): string {
