@@ -187,6 +187,7 @@ export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode>,
     private getRootNodes(): TreeNode[] {
         return [
             this.buildQuickActionsSection(),
+            this.buildSecurityGateSection(),
             this.buildScanResultsSection(),
             this.buildStatusSection()
         ];
@@ -246,6 +247,240 @@ export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode>,
                         title: 'Check Environment'
                     },
                     tooltip: 'Verify Python, dependencies, and model availability'
+                }
+            ]
+        };
+    }
+
+    private buildSecurityGateSection(): TreeNode {
+        const children: TreeNode[] = [];
+
+        // Gate Status subsection
+        children.push(this.buildGateStatusSubsection());
+
+        // Pending Staged Files subsection
+        children.push(this.buildPendingStagedFilesSubsection());
+
+        // Last Findings Summary subsection
+        children.push(this.buildLastFindingsSummarySubsection());
+
+        // Gate Actions
+        children.push(this.buildGateActionsSubsection());
+
+        return {
+            type: 'section',
+            label: '🛡️ Security Gate',
+            children
+        };
+    }
+
+    private buildGateStatusSubsection(): TreeNode {
+        const statusChildren: TreeNode[] = [];
+
+        if (this.gateStatus?.isRunning) {
+            statusChildren.push({
+                type: 'status',
+                label: 'Status: Running...',
+                icon: 'sync~spin',
+                description: '🔄',
+                tooltip: 'Security gate scan is in progress'
+            });
+        } else if (this.gateStatus?.lastDecision) {
+            const decisionEmoji = this.gateStatus.lastDecision === 'PASS' ? '✅' :
+                this.gateStatus.lastDecision === 'WARN' ? '⚠️' : '🚫';
+            const decisionIcon = this.gateStatus.lastDecision === 'PASS' ? 'check' :
+                this.gateStatus.lastDecision === 'WARN' ? 'warning' : 'error';
+            
+            statusChildren.push({
+                type: 'status',
+                label: `Status: ${this.gateStatus.lastDecision}`,
+                icon: decisionIcon,
+                description: decisionEmoji,
+                tooltip: `Last gate decision: ${this.gateStatus.lastDecision}`
+            });
+        } else {
+            statusChildren.push({
+                type: 'status',
+                label: 'Status: Not run',
+                icon: 'circle-outline',
+                description: '○',
+                tooltip: 'Security gate has not been run yet'
+            });
+        }
+
+        // Last run time
+        if (this.gateStatus?.lastRunTime) {
+            statusChildren.push({
+                type: 'status',
+                label: `Last run: ${this.formatDateTime(this.gateStatus.lastRunTime)}`,
+                icon: 'history',
+                tooltip: `Last gate run at ${this.gateStatus.lastRunTime.toLocaleString()}`
+            });
+        } else {
+            statusChildren.push({
+                type: 'status',
+                label: 'Last run: Never',
+                icon: 'history',
+                tooltip: 'No gate runs have been performed yet'
+            });
+        }
+
+        // Files/functions scanned count
+        if (this.gateStatus && (this.gateStatus.scannedFilesCount > 0 || this.gateStatus.scannedFunctionsCount > 0)) {
+            statusChildren.push({
+                type: 'status',
+                label: `Scanned: ${this.gateStatus.scannedFilesCount} files, ${this.gateStatus.scannedFunctionsCount} functions`,
+                icon: 'file-code',
+                tooltip: `Files scanned: ${this.gateStatus.scannedFilesCount}\nFunctions scanned: ${this.gateStatus.scannedFunctionsCount}`
+            });
+        } else {
+            statusChildren.push({
+                type: 'status',
+                label: 'Scanned: 0 files, 0 functions',
+                icon: 'file-code',
+                tooltip: 'No files have been scanned yet'
+            });
+        }
+
+        return {
+            type: 'section',
+            label: 'Gate Status',
+            icon: 'shield',
+            children: statusChildren
+        };
+    }
+
+    private buildPendingStagedFilesSubsection(): TreeNode {
+        // Placeholder - show "No staged files" for now
+        return {
+            type: 'section',
+            label: 'Pending Staged Files',
+            icon: 'git-commit',
+            children: [
+                {
+                    type: 'status',
+                    label: 'No staged files',
+                    icon: 'circle-outline',
+                    tooltip: 'No files are currently staged for commit'
+                }
+            ]
+        };
+    }
+
+    private buildLastFindingsSummarySubsection(): TreeNode {
+        const findingsChildren: TreeNode[] = [];
+
+        if (this.gateStatus?.blockingReasons && this.gateStatus.blockingReasons.length > 0) {
+            // Show blocking reasons with click-to-navigate functionality
+            for (const reason of this.gateStatus.blockingReasons) {
+                // Try to parse file:line from the reason if present
+                const locationMatch = reason.match(/(.+?):(\d+)/);
+                const filePath = locationMatch ? locationMatch[1] : undefined;
+                const line = locationMatch ? parseInt(locationMatch[2], 10) : undefined;
+
+                const findingNode: TreeNode = {
+                    type: 'finding',
+                    label: reason,
+                    icon: 'error',
+                    severity: 'HIGH',
+                    tooltip: `Blocking reason: ${reason}\n\nClick to navigate to the issue.`
+                };
+
+                // Add click-to-navigate if we have location info
+                if (filePath && line) {
+                    findingNode.filePath = filePath;
+                    findingNode.line = line;
+                    findingNode.command = {
+                        command: 'devign.revealResult',
+                        title: 'Go to Finding',
+                        arguments: [{
+                            filePath,
+                            line,
+                            column: 0
+                        }]
+                    };
+                }
+
+                findingsChildren.push(findingNode);
+            }
+        } else if (this.gateStatus?.lastDecision === 'PASS') {
+            findingsChildren.push({
+                type: 'status',
+                label: 'No blocking issues',
+                icon: 'check',
+                description: '✓',
+                tooltip: 'The last gate run passed with no blocking issues'
+            });
+        } else if (this.gateStatus?.lastDecision === 'WARN') {
+            findingsChildren.push({
+                type: 'status',
+                label: 'Warnings present (non-blocking)',
+                icon: 'warning',
+                description: '⚠️',
+                tooltip: 'The last gate run completed with warnings but no blocking issues'
+            });
+        } else {
+            findingsChildren.push({
+                type: 'status',
+                label: 'No findings yet',
+                icon: 'circle-outline',
+                tooltip: 'Run the security gate to see findings'
+            });
+        }
+
+        return {
+            type: 'section',
+            label: 'Last Findings Summary',
+            icon: 'list-unordered',
+            children: findingsChildren
+        };
+    }
+
+    private buildGateActionsSubsection(): TreeNode {
+        return {
+            type: 'section',
+            label: 'Actions',
+            icon: 'play-circle',
+            children: [
+                {
+                    type: 'action',
+                    label: 'Run Gate',
+                    icon: 'play',
+                    command: {
+                        command: 'devign.gate.run',
+                        title: 'Run Gate'
+                    },
+                    tooltip: 'Run the security gate on staged files'
+                },
+                {
+                    type: 'action',
+                    label: 'Commit with Gate',
+                    icon: 'git-commit',
+                    command: {
+                        command: 'devign.gate.commit',
+                        title: 'Commit with Gate'
+                    },
+                    tooltip: 'Run security gate and commit if passed'
+                },
+                {
+                    type: 'action',
+                    label: 'Push with Gate',
+                    icon: 'cloud-upload',
+                    command: {
+                        command: 'devign.gate.push',
+                        title: 'Push with Gate'
+                    },
+                    tooltip: 'Run security gate and push if passed'
+                },
+                {
+                    type: 'action',
+                    label: 'Open Report',
+                    icon: 'file-text',
+                    command: {
+                        command: 'devign.showResults',
+                        title: 'Open Report'
+                    },
+                    tooltip: 'Open the detailed security gate report'
                 }
             ]
         };
@@ -372,60 +607,6 @@ export class DevignSidebarProvider implements vscode.TreeDataProvider<TreeNode>,
                     : 'No issues detected in the last scan'
             }
         ];
-
-        // Add gate status information if available
-        if (this.gateStatus) {
-            children.push({ type: 'status', label: '', icon: 'dash' }); // Separator
-            
-            if (this.gateStatus.isRunning) {
-                children.push({
-                    type: 'status',
-                    label: '🔄 Gate: Running...',
-                    icon: 'sync~spin',
-                    tooltip: 'Security gate scan is in progress'
-                });
-            } else if (this.gateStatus.lastDecision) {
-                const decisionIcon = this.gateStatus.lastDecision === 'PASS' ? 'check' :
-                    this.gateStatus.lastDecision === 'WARN' ? 'warning' : 'error';
-                const decisionEmoji = this.gateStatus.lastDecision === 'PASS' ? '✅' :
-                    this.gateStatus.lastDecision === 'WARN' ? '⚠️' : '🚫';
-                
-                children.push({
-                    type: 'status',
-                    label: `${decisionEmoji} Gate: ${this.gateStatus.lastDecision}`,
-                    icon: decisionIcon,
-                    tooltip: `Last gate decision: ${this.gateStatus.lastDecision}`
-                });
-            }
-
-            if (this.gateStatus.lastRunTime) {
-                children.push({
-                    type: 'status',
-                    label: `Gate run: ${this.formatDateTime(this.gateStatus.lastRunTime)}`,
-                    icon: 'history',
-                    tooltip: `Last gate run at ${this.gateStatus.lastRunTime.toLocaleString()}`
-                });
-            }
-
-            if (this.gateStatus.scannedFilesCount > 0 || this.gateStatus.scannedFunctionsCount > 0) {
-                children.push({
-                    type: 'status',
-                    label: `Gate scanned: ${this.gateStatus.scannedFilesCount} files, ${this.gateStatus.scannedFunctionsCount} functions`,
-                    icon: 'file-code',
-                    tooltip: `Files: ${this.gateStatus.scannedFilesCount}, Functions: ${this.gateStatus.scannedFunctionsCount}`
-                });
-            }
-
-            if (this.gateStatus.blockingReasons.length > 0) {
-                children.push({
-                    type: 'status',
-                    label: `Blocking reasons: ${this.gateStatus.blockingReasons.length}`,
-                    icon: 'error',
-                    tooltip: this.gateStatus.blockingReasons.join('\n'),
-                    description: this.gateStatus.blockingReasons[0]
-                });
-            }
-        }
 
         return {
             type: 'section',

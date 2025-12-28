@@ -264,6 +264,27 @@
           "items": { "type": "string" },
           "default": ["**/*.c", "**/*.cpp", "**/*.h", "**/*.hpp"],
           "description": "Glob patterns to include in gate scanning (applied first, then exclude patterns filter out)"
+        },
+        "devign.gate.maxFilesToScan": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Maximum files to scan in a single gate run. Prevents gate from hanging on large repos."
+        },
+        "devign.gate.maxFunctionsToScan": {
+          "type": "number",
+          "default": 200,
+          "minimum": 1,
+          "maximum": 2000,
+          "description": "Maximum functions to scan in a single gate run. Prevents gate from hanging on large repos."
+        },
+        "devign.gate.concurrentScans": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Number of concurrent file scans during gate execution."
         }
       }
     },
