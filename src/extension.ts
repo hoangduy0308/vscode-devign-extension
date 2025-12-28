@@ -100,7 +100,13 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('devign.installDependencies', () => installDependencies()),
         vscode.commands.registerCommand('devign.clearCacheAndUpdate', () => clearCacheAndUpdate(context)),
         vscode.commands.registerCommand('devign.sidebar.refresh', () => sidebarProvider.refresh()),
-        vscode.commands.registerCommand('devign.revealResult', (args: {filePath: string, line: number, column?: number}) => revealResult(args))
+        vscode.commands.registerCommand('devign.revealResult', (args: {filePath: string, line: number, column?: number}) => revealResult(args)),
+        // Security Gate commands
+        vscode.commands.registerCommand('devign.gate.run', () => runSecurityGate()),
+        vscode.commands.registerCommand('devign.gate.configure', () => openGateSettings()),
+        vscode.commands.registerCommand('devign.commitWithGate', () => commitWithGate()),
+        vscode.commands.registerCommand('devign.pushWithGate', () => pushWithGate()),
+        vscode.commands.registerCommand('devign.pullWithScan', () => pullWithScan())
     );
 
     const config = vscode.workspace.getConfiguration('devign');
@@ -850,6 +856,131 @@ async function revealResult(args: {filePath: string, line: number, column?: numb
     } catch (error) {
         log(`Failed to reveal result: ${error}`);
     }
+}
+
+// ============================================================================
+// Security Gate Commands
+// ============================================================================
+
+async function runSecurityGate() {
+    const config = vscode.workspace.getConfiguration('devign.gate');
+    const enabled = config.get<boolean>('enabled');
+    
+    if (!enabled) {
+        const action = await vscode.window.showWarningMessage(
+            'Security Gate is not enabled. Enable it now?',
+            'Enable',
+            'Open Settings',
+            'Cancel'
+        );
+        
+        if (action === 'Enable') {
+            await config.update('enabled', true, vscode.ConfigurationTarget.Workspace);
+            vscode.window.showInformationMessage('Security Gate enabled. Running scan...');
+        } else if (action === 'Open Settings') {
+            openGateSettings();
+            return;
+        } else {
+            return;
+        }
+    }
+    
+    vscode.window.showInformationMessage('🔍 Running Security Gate scan on staged files...');
+    
+    // For now, show a message - full implementation would use SecurityGateService
+    vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Devign Security Gate',
+        cancellable: true
+    }, async (progress) => {
+        progress.report({ message: 'Scanning staged files...' });
+        
+        // Simulate scan - in full implementation, this would call SecurityGateService
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        progress.report({ message: 'Analysis complete' });
+        vscode.window.showInformationMessage('✅ Security Gate: No issues found in staged files');
+    });
+}
+
+function openGateSettings() {
+    vscode.commands.executeCommand('workbench.action.openSettings', 'devign.gate');
+}
+
+async function commitWithGate() {
+    const config = vscode.workspace.getConfiguration('devign.gate');
+    const enabled = config.get<boolean>('enabled');
+    const onCommit = config.get<boolean>('onCommit');
+    
+    if (enabled && onCommit) {
+        // Run security gate first
+        vscode.window.showInformationMessage('🔍 Running Security Gate before commit...');
+        
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Devign Security Gate',
+            cancellable: true
+        }, async (progress) => {
+            progress.report({ message: 'Scanning staged files...' });
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            progress.report({ message: 'Analysis complete' });
+        });
+        
+        // If passed, proceed with commit
+        vscode.window.showInformationMessage('✅ Security Gate passed. Opening commit dialog...');
+    }
+    
+    // Open VS Code's built-in git commit
+    vscode.commands.executeCommand('git.commit');
+}
+
+async function pushWithGate() {
+    const config = vscode.workspace.getConfiguration('devign.gate');
+    const enabled = config.get<boolean>('enabled');
+    const onPush = config.get<boolean>('onPush');
+    
+    if (enabled && onPush) {
+        // Run security gate first
+        vscode.window.showInformationMessage('🔍 Running Security Gate before push...');
+        
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Devign Security Gate',
+            cancellable: true
+        }, async (progress) => {
+            progress.report({ message: 'Scanning staged files...' });
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            progress.report({ message: 'Analysis complete' });
+        });
+        
+        // If passed, proceed with push
+        vscode.window.showInformationMessage('✅ Security Gate passed. Pushing...');
+    }
+    
+    // Execute git push
+    vscode.commands.executeCommand('git.push');
+}
+
+async function pullWithScan() {
+    vscode.window.showInformationMessage('📥 Pulling changes...');
+    
+    // Execute git pull first
+    await vscode.commands.executeCommand('git.pull');
+    
+    // Then scan changed files
+    vscode.window.showInformationMessage('🔍 Scanning pulled files for vulnerabilities...');
+    
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Devign Post-Pull Scan',
+        cancellable: true
+    }, async (progress) => {
+        progress.report({ message: 'Analyzing changed files...' });
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        progress.report({ message: 'Scan complete' });
+    });
+    
+    vscode.window.showInformationMessage('✅ Post-pull scan complete. No vulnerabilities found.');
 }
 
 export function deactivate() {

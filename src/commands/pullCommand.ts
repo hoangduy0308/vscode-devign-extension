@@ -272,11 +272,29 @@ export class PullCommand {
             reasons: this.buildReasons(results, vulnerableCount, errorCount),
             scanDurationMs: durationMs,
             disclaimer: 'Devign checks vulnerabilities WITHIN individual functions only. It does NOT track data flow across functions, call chains, or complex logic flows. Treat results as best-effort signals, not proof of security.',
+            policyUsed: {
+                enabled: true,
+                onCommit: false,
+                onPush: false,
+                scope: 'staged' as const,
+                blockOnRiskLevels: ['CRITICAL', 'HIGH'] as Array<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'>,
+                blockThreshold: 0.8,
+                warnThreshold: 0.5,
+                maxCriticalFindings: 0,
+                maxHighFindings: 3,
+                fallbackMode: 'warn' as const,
+                timeoutSeconds: 120,
+                excludeGlobs: [],
+                includeGlobs: ['**/*.c', '**/*.cpp', '**/*.h', '**/*.hpp'],
+                maxFilesToScan: 50,
+                maxFunctionsToScan: 200,
+                concurrentScans: 4
+            },
             changedFiles: results.map(r => ({
                 filePath: r.file_path,
                 status: 'M' as const,
                 scanned: true,
-                scanResults: [{ ...r, functionInfo: { name: 'file', startLine: 1, endLine: 1 }, contentHash: '' }]
+                scanResults: [{ ...r, functionInfo: { name: 'file', code: '', filePath: r.file_path, startLine: 1, endLine: 1 }, contentHash: '', cached: false }]
             })),
             startTime: new Date(Date.now() - durationMs),
             endTime: new Date()
