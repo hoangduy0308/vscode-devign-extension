@@ -43,6 +43,11 @@
           "id": "devign.sidebar",
           "name": "Vulnerability Scanner",
           "icon": "resources/devign.svg"
+        },
+        {
+          "id": "devign.gatePanel",
+          "name": "Security Gate",
+          "icon": "$(shield)"
         }
       ]
     },
@@ -109,6 +114,31 @@
       {
         "command": "devign.revealResult",
         "title": "Devign: Go to Finding"
+      },
+      {
+        "command": "devign.commitWithGate",
+        "title": "Devign: Commit with Security Gate",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "devign.pushWithGate",
+        "title": "Devign: Push with Security Gate",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "devign.pullWithScan",
+        "title": "Devign: Pull and Scan",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "devign.gate.run",
+        "title": "Devign: Run Security Gate",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "devign.gate.configure",
+        "title": "Devign: Configure Security Gate",
+        "icon": "$(gear)"
       }
     ],
     "configuration": {
@@ -324,6 +354,23 @@
           "when": "view == devign.sidebar",
           "group": "navigation@3"
         }
+      ],
+      "scm/title": [
+        {
+          "command": "devign.commitWithGate",
+          "when": "scmProvider == git",
+          "group": "navigation@1"
+        },
+        {
+          "command": "devign.pushWithGate",
+          "when": "scmProvider == git",
+          "group": "navigation@2"
+        },
+        {
+          "command": "devign.gate.run",
+          "when": "scmProvider == git",
+          "group": "navigation@3"
+        }
       ]
     },
     "keybindings": [
@@ -332,6 +379,21 @@
         "key": "ctrl+shift+d",
         "mac": "cmd+shift+d",
         "when": "resourceLangId == c || resourceLangId == cpp"
+      },
+      {
+        "command": "devign.commitWithGate",
+        "key": "ctrl+shift+g c",
+        "mac": "cmd+shift+g c"
+      },
+      {
+        "command": "devign.pushWithGate",
+        "key": "ctrl+shift+g p",
+        "mac": "cmd+shift+g p"
+      },
+      {
+        "command": "devign.gate.run",
+        "key": "ctrl+shift+g r",
+        "mac": "cmd+shift+g r"
       }
     ]
   },
