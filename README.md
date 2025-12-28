@@ -102,6 +102,99 @@ Open Command Palette (`Ctrl+Shift+P`) and type "Devign":
 
 Right-click on a C/C++ file in editor or explorer to scan.
 
+## Security Gate (IDE-first)
+
+🚦 **Security Gate** scans your staged files before commit/push to prevent vulnerable code from entering your repository.
+
+### What is Security Gate?
+
+Security Gate is a pre-commit/pre-push scanning feature that automatically checks your staged C/C++ files for vulnerabilities before you commit or push. Unlike traditional git hooks, Devign uses an **IDE-first approach** - all gate operations are triggered through VS Code commands and UI, giving you full control and visibility.
+
+### Limitation: No Git Hooks
+
+> ⚠️ **Important**: Security Gate does NOT install git hooks. Instead, it uses VS Code commands.
+
+This IDE-first approach means:
+- ✅ No global git hook conflicts
+- ✅ Works consistently across all platforms
+- ✅ Easy to enable/disable without modifying `.git/hooks`
+- ✅ Visual feedback and interactive dialogs
+- ❌ Won't block commits made outside VS Code (CLI, other IDEs)
+
+### How to Use
+
+#### 1. Enable Security Gate
+
+Add to your `settings.json`:
+```json
+{
+    "devign.gate.enabled": true
+}
+```
+
+#### 2. Use Gate Commands
+
+Open Command Palette (`Ctrl+Shift+P`) and use:
+
+| Command | Description |
+|---------|-------------|
+| **Devign: Commit with Gate** | Scan staged files, then commit if passed |
+| **Devign: Push with Gate** | Scan staged files, then push if passed |
+
+#### 3. Or Use Sidebar Buttons
+
+1. Open the **Devign** sidebar (click shield icon in Activity Bar)
+2. Find the **Security Gate** section
+3. Click **Commit with Gate** or **Push with Gate** buttons
+
+### Gate Decisions
+
+After scanning, the gate makes one of three decisions:
+
+| Decision | Icon | Action |
+|----------|------|--------|
+| **PASS** | ✅ | Proceed with commit/push automatically |
+| **WARN** | ⚠️ | Show confirmation dialog - you decide to proceed or cancel |
+| **BLOCK** | 🛑 | Cancel operation - vulnerabilities must be fixed first |
+
+### Configuration Options
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `devign.gate.enabled` | `false` | Enable/disable Security Gate |
+| `devign.gate.onCommit` | `true` | Run gate before commit operations |
+| `devign.gate.onPush` | `true` | Run gate before push operations |
+| `devign.gate.blockOnRiskLevels` | `["CRITICAL", "HIGH"]` | Risk levels that block commit/push |
+| `devign.gate.excludeGlobs` | `[]` | File patterns to exclude (e.g., `["**/third_party/**"]`) |
+| `devign.gate.maxFilesToScan` | `50` | Maximum files to scan per gate run |
+| `devign.gate.fallbackMode` | `"warn"` | Action when scan fails: `"allow"`, `"warn"`, or `"block"` |
+
+### Example Configuration
+
+```json
+{
+    "devign.gate.enabled": true,
+    "devign.gate.onCommit": true,
+    "devign.gate.onPush": true,
+    "devign.gate.blockOnRiskLevels": ["CRITICAL", "HIGH"],
+    "devign.gate.excludeGlobs": [
+        "**/third_party/**",
+        "**/vendor/**",
+        "**/test/**"
+    ],
+    "devign.gate.maxFilesToScan": 100,
+    "devign.gate.fallbackMode": "warn"
+}
+```
+
+### Quick Start
+
+1. **Enable gate**: Set `devign.gate.enabled: true` in settings
+2. **Stage your changes**: `git add <files>`
+3. **Commit with gate**: Run "Devign: Commit with Gate" from Command Palette
+4. **Review results**: Fix any CRITICAL/HIGH vulnerabilities if blocked
+5. **Push with gate**: Run "Devign: Push with Gate" when ready
+
 ## Understanding Results
 
 ### Risk Levels
