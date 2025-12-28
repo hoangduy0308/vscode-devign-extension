@@ -252,6 +252,18 @@
           "items": { "type": "string" },
           "default": [],
           "description": "Glob patterns for files to skip during gate scanning"
+        },
+        "devign.gate.excludeGlobs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["**/third_party/**", "**/vendor/**", "**/node_modules/**", "**/*.min.*"],
+          "description": "Glob patterns to exclude from gate scanning (applied after include patterns)"
+        },
+        "devign.gate.includeGlobs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["**/*.c", "**/*.cpp", "**/*.h", "**/*.hpp"],
+          "description": "Glob patterns to include in gate scanning (applied first, then exclude patterns filter out)"
         }
       }
     },
