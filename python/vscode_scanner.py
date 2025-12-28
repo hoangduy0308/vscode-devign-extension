@@ -190,13 +190,8 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
                     except:
                         pass
             
-            # If models are in a nested 'models' folder, move .pt files up
-            nested_models = model_dir / "models"
-            if nested_models.exists() and nested_models.is_dir():
-                for f in nested_models.glob("*.pt"):
-                    dest = model_dir / f.name
-                    if not dest.exists():
-                        shutil.move(str(f), str(dest))
+            # If models are in a nested 'models' folder, keep them there
+            # The _find_model_file method will look in models/ subdirectory
             
             print("Models extracted successfully!", file=sys.stderr)
         except Exception as e:
@@ -207,7 +202,13 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
         return None
     
     # Verify required files exist
-    pt_files = list(model_dir.glob("*.pt"))
+    # Check for .pt files in models/ subdirectory or root
+    models_subdir = model_dir / "models"
+    if models_subdir.exists():
+        pt_files = list(models_subdir.glob("*.pt"))
+    else:
+        pt_files = list(model_dir.glob("*.pt"))
+    
     if (model_dir / "vocab.json").exists() and pt_files:
         return model_dir
     
@@ -309,11 +310,20 @@ class VSCodeScanner:
         )
     
     def _find_model_file(self, model_dir: Path) -> Optional[Path]:
-        """Find the best model file in directory."""
+        """Find the best model file in directory or models/ subdirectory."""
         if model_dir.is_file() and model_dir.suffix == '.pt':
             return model_dir
         
-        pt_files = list(model_dir.glob("*.pt"))
+        # First check in models/ subdirectory
+        models_subdir = model_dir / "models"
+        if models_subdir.exists():
+            pt_files = list(models_subdir.glob("*.pt"))
+        else:
+            pt_files = list(model_dir.glob("*.pt"))
+        
+        if not pt_files:
+            # Fallback: search in root if models/ was empty
+            pt_files = list(model_dir.glob("*.pt"))
         
         if not pt_files:
             return None
