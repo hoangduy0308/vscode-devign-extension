@@ -377,7 +377,10 @@ class VSCodeScanner:
         return list(apis)
     
     def _find_dangerous_lines(self, file_path: str) -> List[Dict[str, Any]]:
-        """Find line numbers containing dangerous APIs and patterns."""
+        """Find line numbers containing dangerous APIs and patterns.
+        
+        Skips comments (single-line // and multi-line /* */) to avoid false positives.
+        """
         dangerous_lines = []
         
         # Dangerous APIs that often cause vulnerabilities
@@ -403,10 +406,58 @@ class VSCodeScanner:
             
             import re
             
+            in_multiline_comment = False
+            
             for line_num, line in enumerate(lines, 1):
-                # Check for dangerous API calls
+                # Track multi-line comment state
+                # Handle /* */ comments that may span multiple lines
+                temp_line = line
+                code_part = ""
+                
+                i = 0
+                while i < len(temp_line):
+                    if in_multiline_comment:
+                        # Look for end of multi-line comment
+                        end_idx = temp_line.find('*/', i)
+                        if end_idx != -1:
+                            in_multiline_comment = False
+                            i = end_idx + 2
+                        else:
+                            # Rest of line is comment
+                            break
+                    else:
+                        # Look for start of comments
+                        single_comment = temp_line.find('//', i)
+                        multi_comment = temp_line.find('/*', i)
+                        
+                        if single_comment != -1 and (multi_comment == -1 or single_comment < multi_comment):
+                            # Single-line comment - rest of line is comment
+                            code_part += temp_line[i:single_comment]
+                            break
+                        elif multi_comment != -1:
+                            # Multi-line comment starts
+                            code_part += temp_line[i:multi_comment]
+                            end_idx = temp_line.find('*/', multi_comment + 2)
+                            if end_idx != -1:
+                                # Comment ends on same line
+                                i = end_idx + 2
+                            else:
+                                # Comment continues to next line
+                                in_multiline_comment = True
+                                break
+                        else:
+                            # No comments found, rest is code
+                            code_part += temp_line[i:]
+                            break
+                
+                # Skip if no actual code (entire line is comment)
+                if not code_part.strip():
+                    continue
+                
+                # Check for dangerous API calls in code part only
                 for api in dangerous_apis:
-                    if re.search(rf'\b{api}\s*\(', line):
+                    match = re.search(rf'\b{api}\s*\(', code_part)
+                    if match:
                         # Determine severity based on API
                         if api in ['strcpy', 'strcat', 'sprintf', 'gets', 'scanf']:
                             severity = 'CRITICAL'
@@ -421,10 +472,10 @@ class VSCodeScanner:
                             severity = 'MEDIUM'
                             message = f'Potentially dangerous function {api}()'
                         
-                        # Find column position
-                        match = re.search(rf'\b{api}\s*\(', line)
-                        col_start = match.start() if match else 0
-                        col_end = match.end() if match else len(line)
+                        # Find column position in original line
+                        orig_match = re.search(rf'\b{api}\s*\(', line)
+                        col_start = orig_match.start() if orig_match else 0
+                        col_end = orig_match.end() if orig_match else len(line)
                         
                         dangerous_lines.append({
                             'line': line_num,
