@@ -104,6 +104,8 @@ export function activate(context: vscode.ExtensionContext) {
         // Security Gate commands
         vscode.commands.registerCommand('devign.gate.run', () => runSecurityGate()),
         vscode.commands.registerCommand('devign.gate.configure', () => openGateSettings()),
+        vscode.commands.registerCommand('devign.gate.commit', () => commitWithGate()),
+        vscode.commands.registerCommand('devign.gate.push', () => pushWithGate()),
         vscode.commands.registerCommand('devign.commitWithGate', () => commitWithGate()),
         vscode.commands.registerCommand('devign.pushWithGate', () => pushWithGate()),
         vscode.commands.registerCommand('devign.pullWithScan', () => pullWithScan())
