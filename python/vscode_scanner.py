@@ -207,15 +207,26 @@ def import_devign_modules(model_dir: Optional[Path] = None):
     # Setup paths if model_dir provided
     if model_dir:
         setup_import_paths(model_dir)
+        print(f"Import paths set up for: {model_dir}", file=sys.stderr)
+        
+        # List contents of model_dir for debugging
+        try:
+            contents = list(model_dir.iterdir())
+            print(f"Model dir contents: {[c.name for c in contents]}", file=sys.stderr)
+        except Exception as e:
+            print(f"Could not list model dir: {e}", file=sys.stderr)
     
     try:
         from devign_infer import VulnerabilityDetector, InferenceConfig
         from devign_infer.config import find_model_path, find_vocab_path
         DEVIGN_AVAILABLE = True
+        print("Successfully imported devign_infer modules", file=sys.stderr)
         return True
     except ImportError as e:
         DEVIGN_AVAILABLE = False
         IMPORT_ERROR = str(e)
+        print(f"Failed to import devign_infer: {e}", file=sys.stderr)
+        print(f"sys.path: {sys.path[:5]}...", file=sys.stderr)
         return False
 
 
