@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4FC3F7"/>
+      <stop offset="100%" style="stop-color:#1976D2"/>
+    </linearGradient>
+  </defs>
+  <path d="M64 8L16 28v36c0 28.8 20.5 55.8 48 64 27.5-8.2 48-35.2 48-64V28L64 8z" fill="url(#shieldGrad)"/>
+  <path d="M64 16L24 32v28c0 24 17 46.4 40 53.2V16z" fill="#fff" opacity="0.2"/>
+  <circle cx="64" cy="56" r="20" fill="#fff"/>
+  <path d="M56 56l6 6 12-12" stroke="#1976D2" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="64" y="98" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#fff">DEVIGN</text>
+</svg>

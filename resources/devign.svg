@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
+  <!-- Shield base - geometric, brutalist style -->
+  <path d="M12 2L4 6v6c0 5.5 3.5 9.5 8 11 4.5-1.5 8-5.5 8-11V6l-8-4z"/>
+  
+  <!-- Scan crosshair - vulnerability detection -->
+  <line x1="12" y1="7" x2="12" y2="10"/>
+  <line x1="12" y1="14" x2="12" y2="17"/>
+  <line x1="7" y1="12" x2="10" y2="12"/>
+  <line x1="14" y1="12" x2="17" y2="12"/>
+  
+  <!-- Center target dot -->
+  <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+</svg>

@@ -1,0 +1,248 @@
+{
+  "name": "devign-vulnerability-scanner",
+  "displayName": "Devign C/C++ Vulnerability Scanner",
+  "description": "AI-powered vulnerability detection for C/C++ code using BiGRU deep learning model",
+  "version": "1.0.0",
+  "publisher": "devign",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "c",
+    "cpp",
+    "c++",
+    "security",
+    "vulnerability",
+    "scanner",
+    "devign",
+    "deep learning"
+  ],
+  "activationEvents": [
+    "onLanguage:c",
+    "onLanguage:cpp"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "devign",
+          "title": "Devign Scanner",
+          "icon": "resources/devign.svg"
+        }
+      ]
+    },
+    "views": {
+      "devign": [
+        {
+          "id": "devign.sidebar",
+          "name": "Vulnerability Scanner",
+          "icon": "resources/devign.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "devign.sidebar",
+        "contents": "Welcome to Devign Vulnerability Scanner!\n\n[Scan Current File](command:devign.scanCurrentFile)\n[Scan Workspace](command:devign.scanWorkspace)\n[Check Environment](command:devign.doctor)\n\nModels will be downloaded automatically on first scan."
+      }
+    ],
+    "commands": [
+      {
+        "command": "devign.scanCurrentFile",
+        "title": "Devign: Scan Current File for Vulnerabilities",
+        "icon": "$(play)"
+      },
+      {
+        "command": "devign.scanWorkspace",
+        "title": "Devign: Scan Workspace for Vulnerabilities",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "devign.scanSelection",
+        "title": "Devign: Scan Selected Code"
+      },
+      {
+        "command": "devign.showResults",
+        "title": "Devign: Show Scan Results"
+      },
+      {
+        "command": "devign.clearDiagnostics",
+        "title": "Devign: Clear All Diagnostics"
+      },
+      {
+        "command": "devign.doctor",
+        "title": "Devign: Run Doctor (Check Setup)"
+      },
+      {
+        "command": "devign.openOutput",
+        "title": "Devign: Open Output Log"
+      },
+      {
+        "command": "devign.configurePython",
+        "title": "Devign: Configure Python Path"
+      },
+      {
+        "command": "devign.downloadModels",
+        "title": "Devign: Download Models"
+      },
+      {
+        "command": "devign.installDependencies",
+        "title": "Devign: Install Dependencies",
+        "icon": "$(package)"
+      },
+      {
+        "command": "devign.clearCacheAndUpdate",
+        "title": "Devign: Clear Cache & Update Models",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "devign.sidebar.refresh",
+        "title": "Devign: Refresh Sidebar",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "devign.revealResult",
+        "title": "Devign: Go to Finding"
+      }
+    ],
+    "configuration": {
+      "title": "Devign Vulnerability Scanner",
+      "properties": {
+        "devign.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to Python executable"
+        },
+        "devign.modelPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Devign model directory. Leave empty to auto-download from GitHub Releases."
+        },
+        "devign.autoDownloadModels": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically download models from GitHub Releases if not found locally"
+        },
+        "devign.threshold": {
+          "type": "number",
+          "default": 0.36,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Vulnerability probability threshold (0.0 - 1.0). Optimal: 0.36"
+        },
+        "devign.scanOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan C/C++ files on save"
+        },
+        "devign.scanOnOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically scan C/C++ files when opened"
+        },
+        "devign.showNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification popups for scan results"
+        },
+        "devign.maxFilesToScan": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum number of files to scan in workspace scan"
+        },
+        "devign.scannerScript": {
+          "type": "string",
+          "default": "",
+          "description": "Path to vscode_scanner.py script (leave empty to use bundled script)"
+        },
+        "devign.device": {
+          "type": "string",
+          "enum": ["auto", "cpu", "cuda"],
+          "default": "auto",
+          "description": "Device for inference (auto, cpu, cuda)"
+        },
+        "devign.scanTimeout": {
+          "type": "number",
+          "default": 60,
+          "minimum": 10,
+          "maximum": 600,
+          "description": "Timeout in seconds for scanning a single file"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "devign.scanCurrentFile",
+          "when": "resourceLangId == c || resourceLangId == cpp",
+          "group": "devign@1"
+        },
+        {
+          "command": "devign.scanSelection",
+          "when": "editorHasSelection && (resourceLangId == c || resourceLangId == cpp)",
+          "group": "devign@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "devign.scanCurrentFile",
+          "when": "resourceLangId == c || resourceLangId == cpp",
+          "group": "devign@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "devign.scanCurrentFile",
+          "when": "view == devign.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "devign.scanWorkspace",
+          "when": "view == devign.sidebar",
+          "group": "navigation@2"
+        },
+        {
+          "command": "devign.sidebar.refresh",
+          "when": "view == devign.sidebar",
+          "group": "navigation@3"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "devign.scanCurrentFile",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d",
+        "when": "resourceLangId == c || resourceLangId == cpp"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hoangduy0308/C-Vul-Devign"
+  },
+  "license": "MIT"
+}
