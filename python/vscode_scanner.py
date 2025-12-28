@@ -234,7 +234,7 @@ class VSCodeScanner:
     def __init__(
         self,
         model_dir: Optional[str] = None,
-        threshold: float = 0.36,
+        threshold: float = 0.65,
         device: str = "auto",
         auto_download: bool = True
     ):
@@ -537,8 +537,8 @@ def main():
     
     parser.add_argument('--model-dir', type=str, default=None,
                        help='Path to model directory (auto-downloads from GitHub if not specified)')
-    parser.add_argument('--threshold', type=float, default=0.36,
-                        help='Vulnerability threshold (optimal: 0.36)')
+    parser.add_argument('--threshold', type=float, default=0.65,
+                        help='Vulnerability threshold (optimal: 0.65)')
     parser.add_argument('--device', type=str, default='auto',
                        choices=['auto', 'cpu', 'cuda'],
                        help='Inference device')

@@ -111,7 +111,7 @@ export class DevignScanner {
     ): Promise<ScanResult[]> {
         return new Promise((resolve, reject) => {
             const config = vscode.workspace.getConfiguration('devign');
-            const threshold = config.get<number>('threshold') || 0.36;
+            const threshold = config.get<number>('threshold') || 0.65;
             const device = config.get<string>('device') || 'auto';
             const autoDownload = config.get<boolean>('autoDownloadModels') !== false;
             const timeout = (config.get<number>('scanTimeout') || 60) * 1000 * Math.max(files.length, 1);
@@ -226,7 +226,7 @@ export class DevignScanner {
     private async runScanner(args: string[], cancellationToken?: vscode.CancellationToken): Promise<ScanResult[]> {
         return new Promise((resolve, reject) => {
             const config = vscode.workspace.getConfiguration('devign');
-            const threshold = config.get<number>('threshold') || 0.36;
+            const threshold = config.get<number>('threshold') || 0.65;
             const device = config.get<string>('device') || 'auto';
             const autoDownload = config.get<boolean>('autoDownloadModels') !== false;
             const timeout = (config.get<number>('scanTimeout') || 60) * 1000;

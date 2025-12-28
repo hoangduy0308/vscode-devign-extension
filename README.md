@@ -61,7 +61,7 @@ Open VS Code Settings (`Ctrl+,`) and search for "Devign":
 |---------|---------|-------------|
 | `devign.pythonPath` | `python` | Path to Python executable |
 | `devign.modelPath` | (auto) | Path to model directory |
-| `devign.threshold` | `0.5` | Vulnerability probability threshold (0.0 - 1.0) |
+| `devign.threshold` | `0.65` | Vulnerability probability threshold (0.0 - 1.0) |
 | `devign.scanOnSave` | `true` | Scan files automatically on save |
 | `devign.scanOnOpen` | `false` | Scan files when opened |
 | `devign.showNotifications` | `true` | Show popup notifications for findings |
