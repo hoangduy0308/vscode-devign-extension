@@ -26,7 +26,7 @@ interface ScanResponse {
 
 export class DevignScanner {
     private context: vscode.ExtensionContext;
-    private pythonPath: string = 'python';
+    private pythonPath: string = '';
     private scannerScript: string = '';
     private modelPath: string = '';
 
@@ -41,9 +41,13 @@ export class DevignScanner {
         });
     }
 
+    private getDefaultPythonPath(): string {
+        return process.platform === 'win32' ? 'python' : 'python3';
+    }
+
     private loadConfiguration() {
         const config = vscode.workspace.getConfiguration('devign');
-        this.pythonPath = config.get<string>('pythonPath') || 'python';
+        this.pythonPath = config.get<string>('pythonPath') || this.getDefaultPythonPath();
         this.modelPath = config.get<string>('modelPath') || '';
         
         const customScriptPath = config.get<string>('scannerScript');

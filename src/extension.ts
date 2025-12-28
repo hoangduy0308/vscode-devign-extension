@@ -220,16 +220,16 @@ function showScanError(message: string) {
 }
 
 async function configurePython() {
-    const config = vscode.workspace.getConfiguration('devign');
-    const currentPath = config.get<string>('pythonPath') || 'python';
+    const currentPath = getPythonPath();
     
     const result = await vscode.window.showInputBox({
         prompt: 'Enter path to Python executable',
         value: currentPath,
-        placeHolder: 'python or /path/to/python'
+        placeHolder: 'python3 or /path/to/python3'
     });
     
     if (result) {
+        const config = vscode.workspace.getConfiguration('devign');
         await config.update('pythonPath', result, vscode.ConfigurationTarget.Global);
         log(`Python path updated to: ${result}`);
         vscode.window.showInformationMessage(`Python path set to: ${result}`);
@@ -238,7 +238,7 @@ async function configurePython() {
 
 async function downloadModels(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('devign');
-    const pythonPath = config.get<string>('pythonPath') || 'python';
+    const pythonPath = getPythonPath();
     const scannerScript = config.get<string>('scannerScript') || 
         path.join(context.extensionPath, 'python', 'vscode_scanner.py');
     
@@ -527,6 +527,16 @@ function clearDiagnostics() {
     vscode.window.showInformationMessage('Devign diagnostics cleared');
 }
 
+function getDefaultPythonPath(): string {
+    // On Linux/macOS use python3, on Windows use python
+    return process.platform === 'win32' ? 'python' : 'python3';
+}
+
+function getPythonPath(): string {
+    const config = vscode.workspace.getConfiguration('devign');
+    return config.get<string>('pythonPath') || getDefaultPythonPath();
+}
+
 async function runDoctor() {
     outputChannel.show();
     log('='.repeat(50));
@@ -534,7 +544,7 @@ async function runDoctor() {
     log('='.repeat(50));
     
     const config = vscode.workspace.getConfiguration('devign');
-    const pythonPath = config.get<string>('pythonPath') || 'python';
+    const pythonPath = getPythonPath();
     const modelPath = config.get<string>('modelPath') || '';
     
     log(`\n[Config]`);
@@ -548,27 +558,39 @@ async function runDoctor() {
     } catch (error) {
         log(`  ✗ Python not found at: ${pythonPath}`);
         log(`    Error: ${error instanceof Error ? error.message : String(error)}`);
+        log(`    Tip: Set "devign.pythonPath" in VS Code settings to your Python 3 path`);
     }
     
     log(`\n[Required Packages]`);
+    // Use import-based check instead of pip show for reliability
     const packages = [
-        { name: 'torch', pipName: 'torch' },
-        { name: 'tree_sitter', pipName: 'tree-sitter' },
-        { name: 'numpy', pipName: 'numpy' },
-        { name: 'tree_sitter_c', pipName: 'tree-sitter-c' }
+        { name: 'torch', module: 'torch' },
+        { name: 'numpy', module: 'numpy' },
+        { name: 'tree-sitter', module: 'tree_sitter' },
+        { name: 'pydantic', module: 'pydantic' }
     ];
     for (const pkg of packages) {
         try {
-            const result = await runCommand(pythonPath, ['-m', 'pip', 'show', pkg.pipName]);
-            const versionMatch = result.match(/Version:\s*(.+)/);
-            const version = versionMatch ? versionMatch[1].trim() : 'installed';
-            log(`  ✓ ${pkg.pipName} (${version})`);
+            await runCommand(pythonPath, ['-c', `import ${pkg.module}; print(${pkg.module}.__version__ if hasattr(${pkg.module}, '__version__') else 'installed')`]);
+            log(`  ✓ ${pkg.name}`);
         } catch {
-            log(`  ✗ ${pkg.pipName} - NOT INSTALLED`);
+            log(`  ✗ ${pkg.name} - NOT INSTALLED`);
         }
     }
     
     log(`\n[Model Files]`);
+    // Check local models first (bundled with extension)
+    const extensionPath = scanner ? path.dirname(path.dirname(require.main?.filename || '')) : '';
+    let localModelDir = '';
+    
+    // Try to find extension path from scanner script location
+    try {
+        const scannerScript = config.get<string>('scannerScript') || '';
+        if (scannerScript) {
+            localModelDir = path.join(path.dirname(scannerScript), 'models');
+        }
+    } catch {}
+    
     // Check in cache directory (where models are auto-downloaded)
     let cacheModelDir: string;
     if (process.platform === 'win32') {
@@ -576,37 +598,70 @@ async function runDoctor() {
     } else {
         cacheModelDir = path.join(process.env.HOME || '', '.cache', 'devign-scanner', 'models', 'v1.0.0');
     }
-    const checkModelDir = modelPath || cacheModelDir;
-    log(`  Cache directory: ${checkModelDir}`);
     
     const modelFiles = ['best_v2_seed42.pt', 'vocab.json', 'config.json'];
-    for (const file of modelFiles) {
-        const filePath = path.join(checkModelDir, file);
-        if (fs.existsSync(filePath)) {
-            const stats = fs.statSync(filePath);
-            log(`  ✓ ${file} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
-        } else {
-            log(`  ✗ ${file} - NOT FOUND`);
+    let modelsFound = false;
+    let usedModelDir = '';
+    
+    // Check local models first
+    if (localModelDir && fs.existsSync(localModelDir)) {
+        const hasAllLocal = modelFiles.every(f => fs.existsSync(path.join(localModelDir, f)));
+        if (hasAllLocal) {
+            log(`  Using local models: ${localModelDir}`);
+            usedModelDir = localModelDir;
+            modelsFound = true;
         }
     }
     
-    // Check if cache directory exists
-    if (!fs.existsSync(checkModelDir)) {
-        log(`\n  ⚠ Models not downloaded yet. Run "Clear Cache & Update" to download.`);
+    // Then check custom path
+    if (!modelsFound && modelPath) {
+        const hasAllCustom = modelFiles.every(f => fs.existsSync(path.join(modelPath, f)));
+        if (hasAllCustom) {
+            log(`  Using custom models: ${modelPath}`);
+            usedModelDir = modelPath;
+            modelsFound = true;
+        }
+    }
+    
+    // Finally check cache
+    if (!modelsFound && fs.existsSync(cacheModelDir)) {
+        const hasAllCache = modelFiles.every(f => fs.existsSync(path.join(cacheModelDir, f)));
+        if (hasAllCache) {
+            log(`  Using cached models: ${cacheModelDir}`);
+            usedModelDir = cacheModelDir;
+            modelsFound = true;
+        }
+    }
+    
+    if (modelsFound) {
+        for (const file of modelFiles) {
+            const filePath = path.join(usedModelDir, file);
+            const stats = fs.statSync(filePath);
+            log(`  ✓ ${file} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+        }
+    } else {
+        log(`  Cache directory: ${cacheModelDir}`);
+        for (const file of modelFiles) {
+            log(`  ✗ ${file} - NOT FOUND`);
+        }
+        log(`\n  ⚠ Models not found. They will be auto-downloaded on first scan.`);
     }
     
     log(`\n[Recommended Actions]`);
-    log(`  • If packages missing: Click "Install Dependencies" or run: pip install torch tree-sitter tree-sitter-c numpy`);
-    log(`  • If models missing: Click "Clear Cache & Update" in sidebar`);
+    log(`  • If packages missing: Click "Install Dependencies" or run: pip3 install torch numpy pydantic`);
+    log(`  • If models missing: Models will auto-download on first scan`);
     log(`  • If wrong Python: Set "devign.pythonPath" in VS Code settings`);
     
     log(`\n${'='.repeat(50)}`);
     log('Doctor check complete');
     
-    // Offer to install missing packages
-    const hasMissingPackages = !(await checkPackageInstalled(pythonPath, 'torch')) ||
-                               !(await checkPackageInstalled(pythonPath, 'tree_sitter')) ||
-                               !(await checkPackageInstalled(pythonPath, 'numpy'));
+    // Offer to install missing packages using import check
+    let hasMissingPackages = false;
+    try {
+        await runCommand(pythonPath, ['-c', 'import torch; import numpy; import pydantic']);
+    } catch {
+        hasMissingPackages = true;
+    }
     
     if (hasMissingPackages) {
         const action = await vscode.window.showWarningMessage(
@@ -662,14 +717,12 @@ function runCommand(command: string, args: string[]): Promise<string> {
 }
 
 async function installDependencies() {
-    const config = vscode.workspace.getConfiguration('devign');
-    const pythonPath = config.get<string>('pythonPath') || 'python';
+    const pythonPath = getPythonPath();
     
     const packages = [
         'torch',
         'numpy', 
-        'tree-sitter',
-        'tree-sitter-c'
+        'pydantic'
     ];
     
     const pipCommand = `${pythonPath} -m pip install ${packages.join(' ')}`;

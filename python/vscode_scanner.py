@@ -5,7 +5,7 @@ VS Code Scanner Bridge for Devign Vulnerability Detection.
 This script provides a simplified interface for VS Code extension
 to communicate with the Devign vulnerability detector.
 
-Supports automatic model download from GitHub Releases.
+Uses HierarchicalBiGRU model with attention-based localization.
 """
 
 import argparse
@@ -17,20 +17,18 @@ import tempfile
 import urllib.request
 import zipfile
 import shutil
+import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Protocol
+from abc import ABC, abstractmethod
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
-DEVIGN_PIPELINE_DIR = SCRIPT_DIR.parent.parent / "devign_pipeline"
 
 # GitHub Release configuration
 GITHUB_REPO = "hoangduy0308/C-Vul-Devign"
 GITHUB_RELEASE_TAG = "v1.0.0"
-MODEL_FILES = ["best_v2_seed42.pt", "vocab.json", "config.json", "feature_stats.json"]
-MODEL_ZIP_NAME = "devign-scanner.zip"  # Main zip with models
+MODEL_ZIP_NAME = "devign-scanner.zip"
 
-# TODO: Update these SHA-256 checksums with actual values from trusted source
-# Generate with: python -c "import hashlib; print(hashlib.sha256(open('file','rb').read()).hexdigest())"
 EXPECTED_CHECKSUMS = {
     MODEL_ZIP_NAME: "PLACEHOLDER_UPDATE_WITH_ACTUAL_SHA256_HASH_OF_DEVIGN_SCANNER_ZIP",
 }
@@ -46,10 +44,7 @@ def compute_sha256(file_path: Path) -> str:
 
 
 def verify_file_integrity(file_path: Path, expected_hash: str) -> bool:
-    """Verify file integrity using SHA-256 checksum.
-    
-    Returns True if hash matches, raises ValueError if mismatch.
-    """
+    """Verify file integrity using SHA-256 checksum."""
     actual_hash = compute_sha256(file_path)
     if actual_hash != expected_hash:
         raise ValueError(
@@ -61,7 +56,6 @@ def verify_file_integrity(file_path: Path, expected_hash: str) -> bool:
     return True
 
 
-# Default cache directory for downloaded models
 def get_default_cache_dir() -> Path:
     """Get default cache directory for models."""
     if sys.platform == "win32":
@@ -72,13 +66,7 @@ def get_default_cache_dir() -> Path:
 
 
 def safe_extract(zip_file: zipfile.ZipFile, dest_dir: Path) -> None:
-    """Safely extract zip file, preventing Zip Slip path traversal attacks.
-    
-    Validates each entry to block:
-    - Absolute paths
-    - Path traversal with ".."
-    - Symlinks
-    """
+    """Safely extract zip file, preventing Zip Slip path traversal attacks."""
     dest_dir_str = os.path.realpath(str(dest_dir))
     
     for member in zip_file.namelist():
@@ -94,24 +82,12 @@ def safe_extract(zip_file: zipfile.ZipFile, dest_dir: Path) -> None:
     zip_file.extractall(dest_dir)
 
 
-def setup_import_paths(model_dir: Path) -> None:
-    """Setup Python import paths for devign modules."""
-    # Add model_dir to path (contains devign_infer, src folders from zip)
-    if str(model_dir) not in sys.path:
-        sys.path.insert(0, str(model_dir))
-    
-    # Also try parent devign_pipeline if exists
-    if DEVIGN_PIPELINE_DIR.exists() and str(DEVIGN_PIPELINE_DIR) not in sys.path:
-        sys.path.insert(0, str(DEVIGN_PIPELINE_DIR))
-
-
 def download_file(url: str, dest: Path, show_progress: bool = True) -> bool:
     """Download a file from URL to destination."""
     try:
         if show_progress:
             print(f"Downloading {url}...", file=sys.stderr)
         
-        # Create request with headers to handle GitHub redirects
         request = urllib.request.Request(url)
         request.add_header('User-Agent', 'DevignScanner/1.0')
         
@@ -132,7 +108,6 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
     """Download model files from GitHub Releases."""
     model_dir = cache_dir / GITHUB_RELEASE_TAG
     
-    # Check if already downloaded
     if not force and model_dir.exists():
         required_files = ["vocab.json", "config.json"]
         pt_files = list(model_dir.glob("*.pt"))
@@ -144,14 +119,12 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
     
     base_url = f"https://github.com/{GITHUB_REPO}/releases/download/{GITHUB_RELEASE_TAG}"
     
-    # Try downloading the zip file directly (most reliable)
     print(f"Downloading models from GitHub Release {GITHUB_RELEASE_TAG}...", file=sys.stderr)
     zip_url = f"{base_url}/{MODEL_ZIP_NAME}"
     zip_path = model_dir / MODEL_ZIP_NAME
     
     if download_file(zip_url, zip_path):
         try:
-            # Verify integrity before extraction
             expected_hash = EXPECTED_CHECKSUMS.get(MODEL_ZIP_NAME)
             if expected_hash and not expected_hash.startswith("PLACEHOLDER"):
                 print("Verifying download integrity...", file=sys.stderr)
@@ -165,16 +138,13 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
                 safe_extract(zf, model_dir)
             zip_path.unlink()
             
-            # Check if models are in a subdirectory
             for subdir in model_dir.iterdir():
                 if subdir.is_dir():
-                    # Move files from subdirectory to model_dir
                     for f in subdir.glob("*.pt"):
                         shutil.move(str(f), str(model_dir / f.name))
                     for f in subdir.glob("*.json"):
                         if not (model_dir / f.name).exists():
                             shutil.move(str(f), str(model_dir / f.name))
-                    # Check nested models directory
                     nested_models = subdir / "models"
                     if nested_models.exists():
                         for f in nested_models.glob("*"):
@@ -188,7 +158,6 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
         print(f"Failed to download {MODEL_ZIP_NAME}", file=sys.stderr)
         return None
     
-    # Verify required files exist
     pt_files = list(model_dir.glob("*.pt"))
     if (model_dir / "vocab.json").exists() and pt_files:
         return model_dir
@@ -196,34 +165,361 @@ def download_models_from_github(cache_dir: Path, force: bool = False) -> Optiona
     return None
 
 
-def import_devign_modules(model_dir: Optional[Path] = None):
-    """Import devign modules after setting up paths."""
-    global DEVIGN_AVAILABLE, IMPORT_ERROR, VulnerabilityDetector, InferenceConfig
+class DevignEngine(ABC):
+    """Abstract base class for vulnerability detection engines."""
     
-    # Setup paths if model_dir provided
-    if model_dir:
-        setup_import_paths(model_dir)
+    @abstractmethod
+    def scan_file(self, file_path: str) -> Dict[str, Any]:
+        """Scan a single file for vulnerabilities."""
+        pass
     
-    # Also add local devign_pipeline if exists
-    if DEVIGN_PIPELINE_DIR.exists():
-        sys.path.insert(0, str(DEVIGN_PIPELINE_DIR))
-    
-    try:
-        from devign_infer import VulnerabilityDetector, InferenceConfig
-        from devign_infer.config import find_model_path, find_vocab_path
-        DEVIGN_AVAILABLE = True
-        return True
-    except ImportError as e:
-        DEVIGN_AVAILABLE = False
-        IMPORT_ERROR = str(e)
-        return False
+    @abstractmethod
+    def scan_code(self, code: str) -> Dict[str, Any]:
+        """Scan code snippet for vulnerabilities."""
+        pass
 
 
-# Try initial import (might fail if modules not downloaded yet)
-DEVIGN_AVAILABLE = False
-IMPORT_ERROR = "Not initialized"
-VulnerabilityDetector = None
-InferenceConfig = None
+class PipelineEngine(DevignEngine):
+    """Engine using HierarchicalBiGRU with attention-based localization."""
+    
+    C_EXTENSIONS = {'.c', '.h', '.cpp', '.hpp', '.cc', '.cxx', '.hxx'}
+    
+    DANGEROUS_APIS = [
+        'strcpy', 'strcat', 'sprintf', 'vsprintf', 'gets', 'scanf',
+        'sscanf', 'fscanf', 'memcpy', 'memmove', 'strncpy', 'strncat',
+        'malloc', 'calloc', 'realloc', 'free', 'alloca'
+    ]
+    
+    def __init__(
+        self,
+        model_dir: Path,
+        threshold: float = 0.36,
+        device: str = "auto"
+    ):
+        self.model_dir = model_dir
+        self.threshold = threshold
+        self.device = device
+        self.model_wrapper = None
+        self._init_model()
+    
+    def _init_model(self):
+        """Initialize the HierarchicalBiGRU model wrapper."""
+        sys.path.insert(0, str(SCRIPT_DIR))
+        sys.path.insert(0, str(self.model_dir))
+        
+        try:
+            from devign_pipeline.api.inference import ModelWrapper
+            
+            self.model_wrapper = ModelWrapper(
+                model_dir=self.model_dir,
+                threshold=self.threshold,
+                use_graph_slicing=True,
+                use_graph_postprocessing=True,
+            )
+        except ImportError as e:
+            raise ImportError(f"Failed to import devign_pipeline: {e}")
+    
+    def _get_risk_level(self, probability: float) -> str:
+        """Convert probability to risk level."""
+        if probability >= 0.8:
+            return "CRITICAL"
+        elif probability >= 0.6:
+            return "HIGH"
+        elif probability >= self.threshold:
+            return "MEDIUM"
+        elif probability >= 0.2:
+            return "LOW"
+        return "SAFE"
+    
+    def _find_dangerous_lines_regex(self, file_path: str) -> List[Dict[str, Any]]:
+        """Find dangerous API calls using regex (fallback/supplement)."""
+        dangerous_lines = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            
+            for line_num, line in enumerate(lines, 1):
+                for api in self.DANGEROUS_APIS:
+                    match = re.search(rf'\b{api}\s*\(', line)
+                    if match:
+                        if api in ['strcpy', 'strcat', 'sprintf', 'gets', 'scanf']:
+                            severity = 'CRITICAL'
+                            message = f'Dangerous function {api}() - high risk of buffer overflow'
+                        elif api in ['malloc', 'calloc', 'realloc']:
+                            severity = 'HIGH'
+                            message = f'Memory allocation {api}() - check return value and free properly'
+                        elif api == 'free':
+                            severity = 'MEDIUM'
+                            message = 'free() call - ensure pointer is valid and set to NULL after'
+                        else:
+                            severity = 'MEDIUM'
+                            message = f'Potentially dangerous function {api}()'
+                        
+                        dangerous_lines.append({
+                            'line': line_num,
+                            'column_start': match.start(),
+                            'column_end': match.end(),
+                            'severity': severity,
+                            'api': api,
+                            'message': message,
+                            'code': line.strip()
+                        })
+                        break
+        except Exception:
+            pass
+        
+        return dangerous_lines
+    
+    def _convert_highlights_to_dangerous_lines(
+        self, 
+        highlights: List[Any],
+        file_path: str,
+        code: str
+    ) -> List[Dict[str, Any]]:
+        """Convert model attention highlights to dangerous_lines format."""
+        dangerous_lines = []
+        lines = code.split('\n')
+        
+        for highlight in highlights:
+            line_num = highlight.line
+            code_snippet = highlight.code_snippet
+            norm_score = highlight.normalized_score
+            
+            if norm_score >= 0.7:
+                severity = 'CRITICAL'
+            elif norm_score >= 0.5:
+                severity = 'HIGH'
+            elif norm_score >= 0.3:
+                severity = 'MEDIUM'
+            else:
+                severity = 'LOW'
+            
+            detected_api = None
+            for api in self.DANGEROUS_APIS:
+                if re.search(rf'\b{api}\s*\(', code_snippet):
+                    detected_api = api
+                    break
+            
+            col_start = 0
+            col_end = len(code_snippet)
+            if detected_api:
+                match = re.search(rf'\b{detected_api}\s*\(', code_snippet)
+                if match:
+                    col_start = match.start()
+                    col_end = match.end()
+            
+            message = f'Model attention indicates potential vulnerability (score: {norm_score:.2f})'
+            if detected_api:
+                message = f'{detected_api}() - {message}'
+            
+            dangerous_lines.append({
+                'line': line_num,
+                'column_start': col_start,
+                'column_end': col_end,
+                'severity': severity,
+                'api': detected_api or '<model-detected>',
+                'message': message,
+                'code': code_snippet,
+                'model_detected': True,
+                'attention_score': norm_score
+            })
+        
+        return dangerous_lines
+    
+    def _merge_dangerous_lines(
+        self,
+        model_lines: List[Dict[str, Any]],
+        regex_lines: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Merge model-detected and regex-detected dangerous lines."""
+        merged = {}
+        
+        for dl in regex_lines:
+            key = (dl['line'], dl.get('api', ''))
+            if key not in merged:
+                merged[key] = dl.copy()
+                merged[key]['model_detected'] = False
+        
+        for dl in model_lines:
+            key = (dl['line'], dl.get('api', ''))
+            if key in merged:
+                existing = merged[key]
+                severity_order = {'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1, 'SAFE': 0}
+                if severity_order.get(dl['severity'], 0) > severity_order.get(existing['severity'], 0):
+                    existing['severity'] = dl['severity']
+                existing['model_detected'] = True
+                existing['attention_score'] = dl.get('attention_score', 0)
+                existing['message'] = f"{existing['message']} (confirmed by model)"
+            else:
+                merged[key] = dl.copy()
+        
+        result = list(merged.values())
+        result.sort(key=lambda x: (
+            -{'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1, 'SAFE': 0}.get(x['severity'], 0),
+            x['line']
+        ))
+        
+        return result
+    
+    def scan_file(self, file_path: str) -> Dict[str, Any]:
+        """Scan a single file using HierarchicalBiGRU with attention localization."""
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                code = f.read()
+            
+            result = self.model_wrapper.predict_with_localization(
+                code,
+                top_k=10,
+                score_threshold=0.2,
+                localize_margin=0.02
+            )
+            
+            prediction = result.prediction
+            highlights = result.highlights
+            
+            model_dangerous_lines = self._convert_highlights_to_dangerous_lines(
+                highlights, file_path, code
+            )
+            
+            regex_dangerous_lines = self._find_dangerous_lines_regex(file_path)
+            
+            merged_lines = self._merge_dangerous_lines(model_dangerous_lines, regex_dangerous_lines)
+            
+            dangerous_apis = list(set(
+                dl.get('api', '') for dl in merged_lines 
+                if dl.get('api') and dl.get('api') != '<model-detected>'
+            ))
+            
+            return {
+                "file_path": file_path,
+                "vulnerable": prediction.vulnerable,
+                "probability": prediction.score,
+                "risk_level": self._get_risk_level(prediction.score),
+                "dangerous_apis": dangerous_apis,
+                "dangerous_lines": merged_lines,
+                "detected_patterns": prediction.detected_patterns,
+                "confidence": prediction.confidence,
+                "error": None
+            }
+        
+        except Exception as e:
+            return {
+                "file_path": file_path,
+                "vulnerable": False,
+                "probability": 0.0,
+                "risk_level": "ERROR",
+                "dangerous_apis": [],
+                "dangerous_lines": [],
+                "detected_patterns": [],
+                "confidence": "low",
+                "error": str(e)
+            }
+    
+    def scan_code(self, code: str) -> Dict[str, Any]:
+        """Scan code snippet for vulnerabilities."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            result = self.scan_file(temp_path)
+            result["file_path"] = "code_snippet"
+            return result
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+
+class FallbackEngine(DevignEngine):
+    """Simple pattern-based fallback engine when model is unavailable."""
+    
+    C_EXTENSIONS = {'.c', '.h', '.cpp', '.hpp', '.cc', '.cxx', '.hxx'}
+    
+    DANGEROUS_APIS = {
+        'strcpy': ('CRITICAL', 'Buffer overflow risk - use strncpy'),
+        'strcat': ('CRITICAL', 'Buffer overflow risk - use strncat'),
+        'sprintf': ('CRITICAL', 'Buffer overflow risk - use snprintf'),
+        'gets': ('CRITICAL', 'Never use gets() - use fgets'),
+        'scanf': ('HIGH', 'Buffer overflow risk with %s - use width specifier'),
+        'memcpy': ('MEDIUM', 'Ensure buffer sizes are validated'),
+        'malloc': ('HIGH', 'Check return value for NULL'),
+        'free': ('MEDIUM', 'Ensure pointer is valid and set to NULL after'),
+    }
+    
+    def __init__(self, threshold: float = 0.36):
+        self.threshold = threshold
+    
+    def scan_file(self, file_path: str) -> Dict[str, Any]:
+        """Scan using regex pattern matching only."""
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                code = f.read()
+            
+            return self._analyze_code(code, file_path)
+        except Exception as e:
+            return {
+                "file_path": file_path,
+                "vulnerable": False,
+                "probability": 0.0,
+                "risk_level": "ERROR",
+                "dangerous_apis": [],
+                "dangerous_lines": [],
+                "error": str(e)
+            }
+    
+    def scan_code(self, code: str) -> Dict[str, Any]:
+        """Scan code snippet."""
+        return self._analyze_code(code, "code_snippet")
+    
+    def _analyze_code(self, code: str, file_path: str) -> Dict[str, Any]:
+        """Analyze code for vulnerabilities using pattern matching."""
+        dangerous_lines = []
+        dangerous_apis_found = set()
+        lines = code.split('\n')
+        
+        for line_num, line in enumerate(lines, 1):
+            for api, (severity, message) in self.DANGEROUS_APIS.items():
+                match = re.search(rf'\b{api}\s*\(', line)
+                if match:
+                    dangerous_apis_found.add(api)
+                    dangerous_lines.append({
+                        'line': line_num,
+                        'column_start': match.start(),
+                        'column_end': match.end(),
+                        'severity': severity,
+                        'api': api,
+                        'message': f'{api}() - {message}',
+                        'code': line.strip()
+                    })
+                    break
+        
+        critical_count = sum(1 for dl in dangerous_lines if dl['severity'] == 'CRITICAL')
+        high_count = sum(1 for dl in dangerous_lines if dl['severity'] == 'HIGH')
+        
+        probability = min(1.0, critical_count * 0.3 + high_count * 0.15 + len(dangerous_lines) * 0.05)
+        vulnerable = probability >= self.threshold
+        
+        if probability >= 0.8:
+            risk_level = "CRITICAL"
+        elif probability >= 0.6:
+            risk_level = "HIGH"
+        elif probability >= self.threshold:
+            risk_level = "MEDIUM"
+        elif probability >= 0.2:
+            risk_level = "LOW"
+        else:
+            risk_level = "SAFE"
+        
+        return {
+            "file_path": file_path,
+            "vulnerable": vulnerable,
+            "probability": round(probability, 4),
+            "risk_level": risk_level,
+            "dangerous_apis": list(dangerous_apis_found),
+            "dangerous_lines": dangerous_lines,
+            "error": None
+        }
 
 
 class VSCodeScanner:
@@ -240,229 +536,62 @@ class VSCodeScanner:
     ):
         self.threshold = threshold
         self.device = device
+        self.engine: DevignEngine
         
-        # Determine model directory
+        model_path = None
         if model_dir:
             model_path = Path(model_dir)
-        else:
-            # Try to auto-download from GitHub
-            if auto_download:
-                cache_dir = get_default_cache_dir()
-                model_path = download_models_from_github(cache_dir)
-                if not model_path:
-                    raise FileNotFoundError(
-                        f"Failed to download models from GitHub. "
-                        f"Please download manually from: "
-                        f"https://github.com/{GITHUB_REPO}/releases/tag/{GITHUB_RELEASE_TAG}"
-                    )
-            else:
-                raise FileNotFoundError("No model directory specified and auto-download disabled")
+        elif auto_download:
+            cache_dir = get_default_cache_dir()
+            model_path = download_models_from_github(cache_dir)
         
-        # Import modules after we have model_path (which contains devign_infer)
-        if not import_devign_modules(model_path):
-            raise ImportError(f"Devign modules not available: {IMPORT_ERROR}")
+        if model_path is None:
+            model_path = SCRIPT_DIR / "models"
         
-        self.model_file = self._find_model_file(model_path)
-        self.vocab_file = model_path / "vocab.json"
-        self.config_file = model_path / "config.json"
+        if not model_path.exists():
+            model_path.mkdir(parents=True, exist_ok=True)
         
-        if not self.model_file:
-            raise FileNotFoundError(f"No model .pt file found in {model_path}")
-        if not self.vocab_file.exists():
-            raise FileNotFoundError(f"vocab.json not found in {model_path}")
-        
-        self.detector = VulnerabilityDetector(
-            model_path=str(self.model_file),
-            vocab_path=str(self.vocab_file),
-            config_path=str(self.config_file) if self.config_file.exists() else None,
-            device=device,
-            threshold=threshold
-        )
-    
-    def _find_model_file(self, model_dir: Path) -> Optional[Path]:
-        """Find the best model file in directory."""
-        if model_dir.is_file() and model_dir.suffix == '.pt':
-            return model_dir
-        
-        pt_files = list(model_dir.glob("*.pt"))
-        
-        if not pt_files:
-            return None
-        
-        # Prefer specific patterns
-        for pattern in ['best_v2_seed42', 'best_', 'model']:
-            for f in pt_files:
-                if pattern in f.name:
-                    return f
-        
-        return pt_files[0]
+        try:
+            self.engine = PipelineEngine(
+                model_dir=model_path,
+                threshold=threshold,
+                device=device
+            )
+            print("Using HierarchicalBiGRU engine with attention localization", file=sys.stderr)
+        except Exception as e:
+            print(f"Failed to initialize PipelineEngine: {e}", file=sys.stderr)
+            print("Falling back to pattern-based engine", file=sys.stderr)
+            self.engine = FallbackEngine(threshold=threshold)
     
     def is_c_file(self, path: str) -> bool:
         """Check if file is a C/C++ source file."""
         return Path(path).suffix.lower() in self.C_EXTENSIONS
     
-    def scan_file(self, file_path: str, by_functions: bool = True) -> Dict[str, Any]:
-        """Scan a single file for vulnerabilities.
-        
-        Args:
-            file_path: Path to the C/C++ source file
-            by_functions: If True, analyze each function separately (more accurate)
-        """
-        try:
-            if by_functions:
-                # Use function-level analysis for more accurate results
-                result = self.detector.analyze_file_by_functions(file_path)
-                
-                # Find line numbers of dangerous APIs
-                dangerous_lines = self._find_dangerous_lines(file_path)
-                
-                # Map dangerous_lines to functions
-                for dl in dangerous_lines:
-                    for func in result.get("function_results", []):
-                        if func["start_line"] <= dl["line"] <= func["end_line"]:
-                            dl["function"] = func["function_name"]
-                            # Use function's risk level if higher
-                            if func["vulnerable"]:
-                                dl["model_detected"] = True
-                            break
-                
-                return {
-                    "file_path": file_path,
-                    "analysis_mode": result.get("analysis_mode", "function_level"),
-                    "vulnerable": result["summary"]["overall_vulnerable"],
-                    "probability": result["summary"]["max_probability"],
-                    "risk_level": result["summary"]["overall_risk_level"],
-                    "dangerous_apis": self._collect_dangerous_apis(result),
-                    "dangerous_lines": dangerous_lines,
-                    "function_results": result.get("function_results", []),
-                    "summary": result["summary"],
-                    "error": None
-                }
-            else:
-                # Legacy file-level analysis
-                result = self.detector.analyze_file(file_path)
-                dangerous_lines = self._find_dangerous_lines(file_path)
-                
-                return {
-                    "file_path": file_path,
-                    "analysis_mode": "file_level",
-                    "vulnerable": result.vulnerable,
-                    "probability": result.probability,
-                    "risk_level": result.risk_level,
-                    "dangerous_apis": result.details.get("dangerous_apis_found", []),
-                    "dangerous_lines": dangerous_lines,
-                    "function_results": [],
-                    "summary": {},
-                    "error": None
-                }
-        except Exception as e:
-            return {
-                "file_path": file_path,
-                "analysis_mode": "error",
-                "vulnerable": False,
-                "probability": 0.0,
-                "risk_level": "ERROR",
-                "dangerous_apis": [],
-                "dangerous_lines": [],
-                "function_results": [],
-                "summary": {},
-                "error": str(e)
-            }
-    
-    def _collect_dangerous_apis(self, result: Dict[str, Any]) -> List[str]:
-        """Collect all dangerous APIs from function results."""
-        apis = set()
-        for func in result.get("function_results", []):
-            apis.update(func.get("dangerous_apis", []))
-        return list(apis)
-    
-    def _find_dangerous_lines(self, file_path: str) -> List[Dict[str, Any]]:
-        """Find line numbers containing dangerous APIs and patterns."""
-        dangerous_lines = []
-        
-        # Dangerous APIs that often cause vulnerabilities
-        dangerous_apis = [
-            'strcpy', 'strcat', 'sprintf', 'vsprintf', 'gets', 'scanf',
-            'sscanf', 'fscanf', 'memcpy', 'memmove', 'strncpy', 'strncat',
-            'malloc', 'calloc', 'realloc', 'free', 'alloca'
-        ]
-        
-        # Patterns for potential vulnerabilities
-        patterns = [
-            (r'\b(strcpy|strcat|sprintf|gets)\s*\(', 'CRITICAL', 'Buffer overflow risk - use safe alternatives'),
-            (r'\bmalloc\s*\([^)]+\)\s*;(?!.*if)', 'HIGH', 'Unchecked malloc return value'),
-            (r'\*\s*\w+\s*=', 'MEDIUM', 'Potential null pointer dereference'),
-            (r'\[\s*\w+\s*\]', 'LOW', 'Array access - ensure bounds checking'),
-            (r'\bfree\s*\(\s*\w+\s*\)', 'MEDIUM', 'Free without null check'),
-            (r'\b(memcpy|memmove)\s*\(', 'MEDIUM', 'Memory copy - verify buffer sizes'),
-        ]
-        
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-            
-            import re
-            
-            for line_num, line in enumerate(lines, 1):
-                # Check for dangerous API calls
-                for api in dangerous_apis:
-                    if re.search(rf'\b{api}\s*\(', line):
-                        # Determine severity based on API
-                        if api in ['strcpy', 'strcat', 'sprintf', 'gets', 'scanf']:
-                            severity = 'CRITICAL'
-                            message = f'Dangerous function {api}() - high risk of buffer overflow'
-                        elif api in ['malloc', 'calloc', 'realloc']:
-                            severity = 'HIGH'
-                            message = f'Memory allocation {api}() - check return value and free properly'
-                        elif api == 'free':
-                            severity = 'MEDIUM'
-                            message = 'free() call - ensure pointer is valid and set to NULL after'
-                        else:
-                            severity = 'MEDIUM'
-                            message = f'Potentially dangerous function {api}()'
-                        
-                        # Find column position
-                        match = re.search(rf'\b{api}\s*\(', line)
-                        col_start = match.start() if match else 0
-                        col_end = match.end() if match else len(line)
-                        
-                        dangerous_lines.append({
-                            'line': line_num,
-                            'column_start': col_start,
-                            'column_end': col_end,
-                            'severity': severity,
-                            'api': api,
-                            'message': message,
-                            'code': line.strip()
-                        })
-                        break  # One finding per line
-                        
-        except Exception as e:
-            pass  # Silently fail if file can't be read
-        
-        return dangerous_lines
+    def scan_file(self, file_path: str) -> Dict[str, Any]:
+        """Scan a single file for vulnerabilities."""
+        return self.engine.scan_file(file_path)
     
     def scan_code(self, code: str) -> Dict[str, Any]:
         """Scan code snippet for vulnerabilities."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
-            f.write(code)
-            temp_path = f.name
-        
-        try:
-            result = self.scan_file(temp_path)
-            result["file_path"] = "code_snippet"
-            return result
-        finally:
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
+        return self.engine.scan_code(code)
     
     def scan_files(self, files: List[str]) -> List[Dict[str, Any]]:
         """Scan multiple files."""
         results = []
         for file_path in files:
-            if self.is_c_file(file_path):
+            if self.is_c_file(file_path) and Path(file_path).exists():
                 result = self.scan_file(file_path)
-                results.append(result)
+            else:
+                result = {
+                    "file_path": file_path,
+                    "vulnerable": False,
+                    "probability": 0.0,
+                    "risk_level": "ERROR",
+                    "dangerous_apis": [],
+                    "dangerous_lines": [],
+                    "error": "File not found or not a C/C++ file"
+                }
+            results.append(result)
         return results
 
 
@@ -485,41 +614,36 @@ def main():
     parser = argparse.ArgumentParser(description="VS Code Devign Scanner Bridge")
     
     parser.add_argument('--model-dir', type=str, default=None,
-                       help='Path to model directory (auto-downloads from GitHub if not specified)')
+                       help='Path to model directory')
     parser.add_argument('--threshold', type=float, default=0.36,
                         help='Vulnerability threshold (optimal: 0.36)')
     parser.add_argument('--device', type=str, default='auto',
                        choices=['auto', 'cpu', 'cuda'],
                        help='Inference device')
     parser.add_argument('--no-auto-download', action='store_true',
-                       help='Disable automatic model download from GitHub')
+                       help='Disable automatic model download')
     parser.add_argument('--force-download', action='store_true',
-                       help='Force re-download models from GitHub')
+                       help='Force re-download models')
     
     subparsers = parser.add_subparsers(dest='command')
     
-    # Scan command
     scan_parser = subparsers.add_parser('scan', help='Scan file or directory')
     scan_parser.add_argument('path', type=str, help='Path to scan')
     scan_parser.add_argument('--format', type=str, default='json',
                             choices=['json', 'text'])
     
-    # Scan code command
     code_parser = subparsers.add_parser('scan-code', help='Scan code snippet')
     code_parser.add_argument('--stdin', action='store_true',
                             help='Read code from stdin')
     
-    # Batch scan command - reads JSON array of file paths from stdin
     batch_parser = subparsers.add_parser('scan-batch', help='Scan multiple files in batch mode')
     batch_parser.add_argument('--progress', action='store_true',
                              help='Output progress as JSON lines to stderr')
     
-    # Download command
     download_parser = subparsers.add_parser('download', help='Download models from GitHub')
     download_parser.add_argument('--force', action='store_true',
                                 help='Force re-download')
     
-    # Info command
     info_parser = subparsers.add_parser('info', help='Show configuration info')
     
     args = parser.parse_args()
@@ -529,7 +653,6 @@ def main():
         sys.exit(1)
     
     try:
-        # Handle download command separately
         if args.command == 'download':
             cache_dir = get_default_cache_dir()
             model_dir = download_models_from_github(cache_dir, force=args.force)
@@ -547,27 +670,33 @@ def main():
                 sys.exit(1)
             return
         
-        # Handle info command
         if args.command == 'info':
             cache_dir = get_default_cache_dir()
             model_dir = cache_dir / GITHUB_RELEASE_TAG
+            local_model_dir = SCRIPT_DIR / "models"
             print(json.dumps({
                 "cache_dir": str(cache_dir),
                 "model_dir": str(model_dir),
-                "model_exists": model_dir.exists(),
+                "local_model_dir": str(local_model_dir),
+                "model_exists": model_dir.exists() or local_model_dir.exists(),
                 "github_repo": GITHUB_REPO,
                 "release_tag": GITHUB_RELEASE_TAG,
-                "devign_available": DEVIGN_AVAILABLE
+                "engine": "HierarchicalBiGRU" if (model_dir.exists() or local_model_dir.exists()) else "FallbackEngine"
             }, indent=2))
             return
         
-        # Force download if requested
         if getattr(args, 'force_download', False):
             cache_dir = get_default_cache_dir()
             download_models_from_github(cache_dir, force=True)
         
+        model_dir = args.model_dir
+        if not model_dir:
+            local_model_dir = SCRIPT_DIR / "models"
+            if local_model_dir.exists() and list(local_model_dir.glob("*.pt")):
+                model_dir = str(local_model_dir)
+        
         scanner = VSCodeScanner(
-            model_dir=args.model_dir,
+            model_dir=model_dir,
             threshold=args.threshold,
             device=args.device,
             auto_download=not getattr(args, 'no_auto_download', False)
