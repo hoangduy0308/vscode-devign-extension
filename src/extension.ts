@@ -7,7 +7,6 @@ import { DevignScanner, ScanResult } from './scanner';
 import { ResultsPanel } from './resultsPanel';
 import { DecorationManager, DangerousLine, FileVulnerabilityResult, disposeDecorations, setExtensionPath } from './decorations';
 import { DevignSidebarProvider } from './sidebarProvider';
-import { initializeParser, disposeParser } from './parsers/treeSitterParser';
 
 let scanner: DevignScanner;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -87,10 +86,14 @@ export function activate(context: vscode.ExtensionContext) {
     // Set extension path for tree-sitter initialization
     setExtensionPath(context.extensionPath);
     
-    // Initialize tree-sitter parser in background
-    initializeParser(context.extensionPath)
-        .then(() => log('Tree-sitter parser initialized successfully'))
-        .catch(err => log(`Tree-sitter initialization failed (will use regex fallback): ${err.message}`));
+    // Initialize tree-sitter parser in background (dynamic import to avoid blocking)
+    import('./parsers/treeSitterParser').then(({ initializeParser }) => {
+        initializeParser(context.extensionPath)
+            .then(() => log('Tree-sitter parser initialized successfully'))
+            .catch(err => log(`Tree-sitter initialization failed (will use regex fallback): ${err.message}`));
+    }).catch(err => {
+        log(`Failed to load tree-sitter module (will use regex fallback): ${err.message}`);
+    });
 
     // Register sidebar
     sidebarProvider = new DevignSidebarProvider();
@@ -1005,6 +1008,13 @@ export function deactivate() {
         resultsPanel.dispose();
     }
     disposeDecorations();
-    disposeParser();
+    
+    // Dispose tree-sitter parser if loaded
+    import('./parsers/treeSitterParser').then(({ disposeParser }) => {
+        disposeParser();
+    }).catch(() => {
+        // Ignore - module wasn't loaded
+    });
+    
     log('Devign extension deactivated');
 }

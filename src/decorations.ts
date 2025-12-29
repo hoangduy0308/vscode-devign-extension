@@ -1,5 +1,18 @@
 import * as vscode from 'vscode';
-import { ParsedFunction, extractFunctionsFromCode, isParserAvailable } from './parsers/treeSitterParser';
+
+// Tree-sitter types (for dynamic import)
+interface ParsedFunction {
+    name: string;
+    startLine: number;
+    endLine: number;
+    startColumn: number;
+    endColumn: number;
+    code: string;
+    signature: string;
+    returnType?: string;
+    parameters?: string;
+    className?: string;
+}
 
 export interface DangerousLine {
     line: number;
@@ -84,10 +97,11 @@ export class DecorationManager {
         const text = document.getText();
         const filePath = document.uri.fsPath;
         
-        // Try tree-sitter first
+        // Try tree-sitter first (dynamic import to avoid blocking extension load)
         if (extensionPath) {
             try {
-                const parsedFunctions = await extractFunctionsFromCode(text, filePath, extensionPath);
+                const treeSitter = await import('./parsers/treeSitterParser');
+                const parsedFunctions = await treeSitter.extractFunctionsFromCode(text, filePath, extensionPath);
                 if (parsedFunctions.length > 0) {
                     console.log(`Tree-sitter found ${parsedFunctions.length} functions in ${filePath}`);
                     return parsedFunctions.map(f => ({
