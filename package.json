@@ -27,6 +27,13 @@
     "onLanguage:cpp"
   ],
   "main": "./out/extension.js",
+  "files": [
+    "out/**/*",
+    "wasm/**/*",
+    "python/**/*",
+    "resources/**/*",
+    "media/**/*"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -193,7 +200,11 @@
         },
         "devign.device": {
           "type": "string",
-          "enum": ["auto", "cpu", "cuda"],
+          "enum": [
+            "auto",
+            "cpu",
+            "cuda"
+          ],
           "default": "auto",
           "description": "Device for inference (auto, cpu, cuda)"
         },
@@ -221,7 +232,10 @@
         },
         "devign.gate.scope": {
           "type": "string",
-          "enum": ["staged", "staged+unstaged"],
+          "enum": [
+            "staged",
+            "staged+unstaged"
+          ],
           "default": "staged",
           "enumDescriptions": [
             "Scan only staged files",
@@ -233,9 +247,17 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
           },
-          "default": ["CRITICAL", "HIGH"],
+          "default": [
+            "CRITICAL",
+            "HIGH"
+          ],
           "description": "Risk levels that will block commit/push"
         },
         "devign.gate.blockThreshold": {
@@ -266,7 +288,11 @@
         },
         "devign.gate.fallbackMode": {
           "type": "string",
-          "enum": ["allow", "warn", "block"],
+          "enum": [
+            "allow",
+            "warn",
+            "block"
+          ],
           "default": "warn",
           "description": "Action when scan fails or times out"
         },
@@ -279,20 +305,36 @@
         },
         "devign.gate.allowedFilePatterns": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Glob patterns for files to skip during gate scanning"
         },
         "devign.gate.excludeGlobs": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["**/third_party/**", "**/vendor/**", "**/node_modules/**", "**/*.min.*"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/third_party/**",
+            "**/vendor/**",
+            "**/node_modules/**",
+            "**/*.min.*"
+          ],
           "description": "Glob patterns to exclude from gate scanning (applied after include patterns)"
         },
         "devign.gate.includeGlobs": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["**/*.c", "**/*.cpp", "**/*.h", "**/*.hpp"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*.c",
+            "**/*.cpp",
+            "**/*.h",
+            "**/*.hpp"
+          ],
           "description": "Glob patterns to include in gate scanning (applied first, then exclude patterns filter out)"
         },
         "devign.gate.maxFilesToScan": {
@@ -410,13 +452,16 @@
     "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^2.22.0",
     "eslint": "^8.0.0",
-    "typescript": "^5.0.0",
-    "@vscode/vsce": "^2.22.0"
+    "typescript": "^5.0.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/hoangduy0308/C-Vul-Devign"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "web-tree-sitter": "^0.26.3"
+  }
 }

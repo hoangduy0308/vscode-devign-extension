@@ -5,8 +5,9 @@ import * as path from 'path';
 import * as os from 'os';
 import { DevignScanner, ScanResult } from './scanner';
 import { ResultsPanel } from './resultsPanel';
-import { DecorationManager, DangerousLine, FileVulnerabilityResult, disposeDecorations } from './decorations';
+import { DecorationManager, DangerousLine, FileVulnerabilityResult, disposeDecorations, setExtensionPath } from './decorations';
 import { DevignSidebarProvider } from './sidebarProvider';
+import { initializeParser, disposeParser } from './parsers/treeSitterParser';
 
 let scanner: DevignScanner;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -82,6 +83,14 @@ export function activate(context: vscode.ExtensionContext) {
 
     scanner = new DevignScanner(context);
     decorationManager = DecorationManager.getInstance();
+    
+    // Set extension path for tree-sitter initialization
+    setExtensionPath(context.extensionPath);
+    
+    // Initialize tree-sitter parser in background
+    initializeParser(context.extensionPath)
+        .then(() => log('Tree-sitter parser initialized successfully'))
+        .catch(err => log(`Tree-sitter initialization failed (will use regex fallback): ${err.message}`));
 
     // Register sidebar
     sidebarProvider = new DevignSidebarProvider();
@@ -996,5 +1005,6 @@ export function deactivate() {
         resultsPanel.dispose();
     }
     disposeDecorations();
+    disposeParser();
     log('Devign extension deactivated');
 }

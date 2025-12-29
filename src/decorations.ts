@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { ParsedFunction, extractFunctionsFromCode, isParserAvailable } from './parsers/treeSitterParser';
 
 export interface DangerousLine {
     line: number;
@@ -25,6 +26,13 @@ interface FunctionRange {
     name: string;
     startLine: number;
     endLine: number;
+}
+
+// Extension path for tree-sitter initialization
+let extensionPath: string = '';
+
+export function setExtensionPath(path: string): void {
+    extensionPath = path;
 }
 
 // Decoration types for different severity levels
@@ -70,9 +78,37 @@ export class DecorationManager {
     }
     
     /**
-     * Find all function definitions in C/C++ code
+     * Find all function definitions in C/C++ code using tree-sitter (with regex fallback)
      */
-    private findFunctions(document: vscode.TextDocument): FunctionRange[] {
+    private async findFunctionsAsync(document: vscode.TextDocument): Promise<FunctionRange[]> {
+        const text = document.getText();
+        const filePath = document.uri.fsPath;
+        
+        // Try tree-sitter first
+        if (extensionPath) {
+            try {
+                const parsedFunctions = await extractFunctionsFromCode(text, filePath, extensionPath);
+                if (parsedFunctions.length > 0) {
+                    console.log(`Tree-sitter found ${parsedFunctions.length} functions in ${filePath}`);
+                    return parsedFunctions.map(f => ({
+                        name: f.name,
+                        startLine: f.startLine - 1, // Convert to 0-indexed
+                        endLine: f.endLine - 1
+                    }));
+                }
+            } catch (error) {
+                console.warn('Tree-sitter parsing failed, falling back to regex:', error);
+            }
+        }
+        
+        // Fallback to regex-based parsing
+        return this.findFunctionsRegex(document);
+    }
+    
+    /**
+     * Regex-based function finding (fallback when tree-sitter unavailable)
+     */
+    private findFunctionsRegex(document: vscode.TextDocument): FunctionRange[] {
         const functions: FunctionRange[] = [];
         const text = document.getText();
         const lines = text.split('\n');
@@ -132,17 +168,17 @@ export class DecorationManager {
      * Apply decorations for file-level vulnerability result.
      * Highlights all functions in the file with appropriate severity color.
      */
-    public applyFileVulnerabilityDecoration(
+    public async applyFileVulnerabilityDecoration(
         editor: vscode.TextEditor, 
         result: FileVulnerabilityResult
-    ): void {
+    ): Promise<void> {
         if (!result.vulnerable) {
             this.clearDecorations(editor);
             return;
         }
         
-        // Find all functions in the file
-        const functions = this.findFunctions(editor.document);
+        // Find all functions in the file (using tree-sitter if available)
+        const functions = await this.findFunctionsAsync(editor.document);
         
         const patternsText = result.detected_patterns.length > 0 
             ? `\n\n**Detected patterns:** ${result.detected_patterns.join(', ')}`
