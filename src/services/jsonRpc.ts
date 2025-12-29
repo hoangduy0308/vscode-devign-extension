@@ -44,7 +44,7 @@ export class JsonRpc {
         }
     }
 
-    public sendRequest(method: string, params?: any): Promise<any> {
+    public sendRequest(method: string, params?: any, options?: { timeout?: number; signal?: AbortSignal }): Promise<any> {
         const id = uuidv4();
         const request: JsonRpcRequest = {
             jsonrpc: '2.0',
@@ -54,7 +54,42 @@ export class JsonRpc {
         };
 
         return new Promise((resolve, reject) => {
-            this.pendingRequests.set(id, { resolve, reject });
+            let timeoutId: NodeJS.Timeout | undefined;
+
+            const cleanup = () => {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+                this.pendingRequests.delete(id);
+            };
+
+            const wrappedResolve = (value: any) => {
+                cleanup();
+                resolve(value);
+            };
+
+            const wrappedReject = (reason?: any) => {
+                cleanup();
+                reject(reason);
+            };
+
+            if (options?.signal) {
+                if (options.signal.aborted) {
+                    reject(new Error('Request cancelled'));
+                    return;
+                }
+                options.signal.addEventListener('abort', () => {
+                    wrappedReject(new Error('Request cancelled'));
+                });
+            }
+
+            if (options?.timeout && options.timeout > 0) {
+                timeoutId = setTimeout(() => {
+                    wrappedReject(new Error(`Request timed out after ${options.timeout}ms`));
+                }, options.timeout);
+            }
+
+            this.pendingRequests.set(id, { resolve: wrappedResolve, reject: wrappedReject });
             this.sendCallback(JSON.stringify(request));
         });
     }

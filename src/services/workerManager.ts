@@ -59,12 +59,20 @@ export class WorkerManager {
         });
     }
 
+    public spawn(): Promise<void> {
+        return this.start();
+    }
+
     public async stop(): Promise<void> {
         if (this.process) {
             this.process.kill();
             this.process = null;
             this.jsonRpc = null;
         }
+    }
+
+    public shutdown(): Promise<void> {
+        return this.stop();
     }
 
     public async restart(): Promise<void> {
@@ -78,11 +86,15 @@ export class WorkerManager {
         return this.process !== null && !this.process.killed;
     }
 
-    public async request(method: string, params?: any): Promise<any> {
+    public async request(method: string, params?: any, options?: { timeout?: number; signal?: AbortSignal }): Promise<any> {
         if (!this.jsonRpc) {
             throw new Error('Worker not started');
         }
-        return this.jsonRpc.sendRequest(method, params);
+        const defaultTimeout = 30000;
+        return this.jsonRpc.sendRequest(method, params, {
+            timeout: options?.timeout ?? defaultTimeout,
+            signal: options?.signal
+        });
     }
 
     private async getPythonPath(): Promise<string> {
