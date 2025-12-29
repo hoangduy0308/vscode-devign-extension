@@ -20,7 +20,14 @@ export interface FileVulnerabilityResult {
     detected_patterns: string[];
 }
 
-// Decoration types for different severity levels - now for whole file indication
+// Function range info
+interface FunctionRange {
+    name: string;
+    startLine: number;
+    endLine: number;
+}
+
+// Decoration types for different severity levels
 const criticalDecoration = vscode.window.createTextEditorDecorationType({
     backgroundColor: 'rgba(255, 0, 0, 0.15)',
     isWholeLine: true,
@@ -49,16 +56,6 @@ const lowDecoration = vscode.window.createTextEditorDecorationType({
     overviewRulerLane: vscode.OverviewRulerLane.Full,
 });
 
-// Banner decoration at top of file
-const vulnerabilityBannerDecoration = vscode.window.createTextEditorDecorationType({
-    isWholeLine: true,
-    after: {
-        contentText: '',
-        margin: '0 0 0 20px',
-        fontWeight: 'bold'
-    }
-});
-
 export class DecorationManager {
     private static instance: DecorationManager;
     private decoratedEditors: Map<string, boolean> = new Map();
@@ -73,8 +70,67 @@ export class DecorationManager {
     }
     
     /**
+     * Find all function definitions in C/C++ code
+     */
+    private findFunctions(document: vscode.TextDocument): FunctionRange[] {
+        const functions: FunctionRange[] = [];
+        const text = document.getText();
+        const lines = text.split('\n');
+        
+        // Regex to match C/C++ function definitions
+        // Matches: return_type function_name(params) {
+        const funcStartRegex = /^[\w\s\*]+\s+(\w+)\s*\([^)]*\)\s*\{?\s*$/;
+        const funcStartRegex2 = /^[\w\s\*]+\s+(\w+)\s*\([^)]*\)\s*$/; // Without opening brace
+        
+        let braceCount = 0;
+        let currentFunc: { name: string; startLine: number } | null = null;
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            
+            // Skip preprocessor directives and comments
+            if (line.startsWith('#') || line.startsWith('//') || line.startsWith('/*')) {
+                continue;
+            }
+            
+            // Check for function start
+            if (braceCount === 0) {
+                let match = line.match(funcStartRegex);
+                if (!match) {
+                    match = line.match(funcStartRegex2);
+                }
+                
+                if (match && match[1] && !['if', 'else', 'for', 'while', 'switch', 'do'].includes(match[1])) {
+                    currentFunc = { name: match[1], startLine: i };
+                }
+            }
+            
+            // Count braces
+            for (const char of line) {
+                if (char === '{') {
+                    braceCount++;
+                } else if (char === '}') {
+                    braceCount--;
+                    
+                    // Function ended
+                    if (braceCount === 0 && currentFunc) {
+                        functions.push({
+                            name: currentFunc.name,
+                            startLine: currentFunc.startLine,
+                            endLine: i
+                        });
+                        currentFunc = null;
+                    }
+                }
+            }
+        }
+        
+        return functions;
+    }
+    
+    /**
      * Apply decorations for file-level vulnerability result.
-     * Highlights the entire file with appropriate severity color.
+     * Highlights all functions in the file with appropriate severity color.
      */
     public applyFileVulnerabilityDecoration(
         editor: vscode.TextEditor, 
@@ -85,29 +141,63 @@ export class DecorationManager {
             return;
         }
         
-        // Create range for entire file
-        const lastLine = editor.document.lineCount - 1;
-        const fullRange = new vscode.Range(0, 0, lastLine, editor.document.lineAt(lastLine).text.length);
+        // Find all functions in the file
+        const functions = this.findFunctions(editor.document);
         
         const patternsText = result.detected_patterns.length > 0 
             ? `\n\n**Detected patterns:** ${result.detected_patterns.join(', ')}`
             : '';
         
-        const hoverMessage = new vscode.MarkdownString(
-            `## 🛡️ Devign Vulnerability Detection\n\n` +
-            `**Risk Level:** ${this.getSeverityEmoji(result.risk_level)} **${result.risk_level}**\n\n` +
-            `**Probability:** ${(result.probability * 100).toFixed(1)}%\n\n` +
-            `**Confidence:** ${result.confidence}` +
-            patternsText +
-            `\n\n---\n` +
-            `*This is a file-level prediction by the Devign AI model. ` +
-            `The model analyzes the entire code structure to detect potential vulnerabilities.*`
-        );
+        const decorationOptions: vscode.DecorationOptions[] = [];
         
-        const decorationOptions: vscode.DecorationOptions[] = [{
-            range: fullRange,
-            hoverMessage: hoverMessage
-        }];
+        if (functions.length > 0) {
+            // Mark each function
+            for (const func of functions) {
+                const startLine = func.startLine;
+                const endLine = func.endLine;
+                
+                const range = new vscode.Range(
+                    startLine, 0,
+                    endLine, editor.document.lineAt(endLine).text.length
+                );
+                
+                const hoverMessage = new vscode.MarkdownString(
+                    `## 🛡️ Devign Vulnerability Detection\n\n` +
+                    `**Function:** \`${func.name}()\`\n\n` +
+                    `**Risk Level:** ${this.getSeverityEmoji(result.risk_level)} **${result.risk_level}**\n\n` +
+                    `**Probability:** ${(result.probability * 100).toFixed(1)}%\n\n` +
+                    `**Confidence:** ${result.confidence}` +
+                    patternsText +
+                    `\n\n---\n` +
+                    `*The Devign AI model detected potential vulnerabilities in this file. ` +
+                    `Functions are highlighted for review.*`
+                );
+                
+                decorationOptions.push({
+                    range: range,
+                    hoverMessage: hoverMessage
+                });
+            }
+        } else {
+            // No functions found, mark entire file
+            const lastLine = editor.document.lineCount - 1;
+            const fullRange = new vscode.Range(0, 0, lastLine, editor.document.lineAt(lastLine).text.length);
+            
+            const hoverMessage = new vscode.MarkdownString(
+                `## 🛡️ Devign Vulnerability Detection\n\n` +
+                `**Risk Level:** ${this.getSeverityEmoji(result.risk_level)} **${result.risk_level}**\n\n` +
+                `**Probability:** ${(result.probability * 100).toFixed(1)}%\n\n` +
+                `**Confidence:** ${result.confidence}` +
+                patternsText +
+                `\n\n---\n` +
+                `*The Devign AI model detected potential vulnerabilities in this file.*`
+            );
+            
+            decorationOptions.push({
+                range: fullRange,
+                hoverMessage: hoverMessage
+            });
+        }
         
         // Clear all first
         this.clearDecorations(editor);
@@ -197,7 +287,6 @@ export class DecorationManager {
         editor.setDecorations(highDecoration, []);
         editor.setDecorations(mediumDecoration, []);
         editor.setDecorations(lowDecoration, []);
-        editor.setDecorations(vulnerabilityBannerDecoration, []);
         
         this.decoratedEditors.delete(editor.document.uri.toString());
     }
@@ -230,5 +319,4 @@ export function disposeDecorations(): void {
     highDecoration.dispose();
     mediumDecoration.dispose();
     lowDecoration.dispose();
-    vulnerabilityBannerDecoration.dispose();
 }
