@@ -192,14 +192,15 @@ async function scanDocument(document: vscode.TextDocument, isAutoScan: boolean =
         
         const editor = vscode.window.activeTextEditor;
         if (editor && editor.document.uri.toString() === document.uri.toString()) {
-            // Apply file-level vulnerability decoration (honest about what model detects)
+            // Apply vulnerability decoration using function-level results from Python
             if (result.vulnerable) {
                 decorationManager.applyFileVulnerabilityDecoration(editor, {
                     vulnerable: result.vulnerable,
                     probability: result.probability,
                     risk_level: result.risk_level,
                     confidence: result.summary?.confidence || 'unknown',
-                    detected_patterns: result.dangerous_apis || []
+                    detected_patterns: result.dangerous_apis || [],
+                    function_results: result.function_results  // Pass function-level results
                 });
             } else {
                 decorationManager.clearDecorations(editor);
@@ -214,7 +215,7 @@ async function scanDocument(document: vscode.TextDocument, isAutoScan: boolean =
         sidebarProvider.setResults([result]);
         sidebarProvider.setStatus({ 
             lastScanTime: new Date(),
-            totalIssues: result.vulnerable ? 1 : 0
+            totalIssues: result.function_results?.length || (result.vulnerable ? 1 : 0)
         });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

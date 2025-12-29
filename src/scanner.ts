@@ -5,16 +5,32 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { DangerousLine } from './decorations';
 
+// Function-level scan result
+export interface FunctionResult {
+    function_name: string;
+    start_line: number;
+    end_line: number;
+    vulnerable: boolean;
+    probability: number;
+    risk_level: string;
+    confidence: string;
+    detected_patterns: string[];
+}
+
 export interface ScanResult {
     file_path: string;
+    analysis_mode?: string;  // 'function_level' or 'file_level'
     vulnerable: boolean;
     probability: number;
     risk_level: string;
     dangerous_apis: string[];
     dangerous_lines: DangerousLine[];
+    function_results?: FunctionResult[];  // Results for each function
     summary?: {
         confidence?: string;
         threshold?: number;
+        functions_scanned?: number;
+        vulnerable_functions?: number;
     };
     error?: string;
 }

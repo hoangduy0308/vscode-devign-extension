@@ -6,17 +6,20 @@ This script provides a simplified interface for VS Code extension
 to communicate with the Devign vulnerability detector.
 
 Supports automatic model download from GitHub Releases.
+Scans code by individual functions (model was trained on function-level data).
 """
 
 import argparse
 import hashlib
 import json
+import re
 import sys
 import os
 import tempfile
 import urllib.request
 import zipfile
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -33,6 +36,99 @@ MODEL_ZIP_NAME = "devign-scanner.zip"  # Main zip with models
 EXPECTED_CHECKSUMS = {
     MODEL_ZIP_NAME: "PLACEHOLDER_UPDATE_WITH_ACTUAL_SHA256_HASH_OF_DEVIGN_SCANNER_ZIP",
 }
+
+
+@dataclass
+class FunctionInfo:
+    """Information about an extracted function."""
+    name: str
+    code: str
+    start_line: int
+    end_line: int
+
+
+def extract_functions_regex(code: str) -> List[FunctionInfo]:
+    """Extract functions from C code using regex.
+    
+    The model was trained on individual functions, so we need to split
+    the code into functions for accurate predictions.
+    """
+    functions = []
+    lines = code.split('\n')
+    
+    # Pattern to match C function definitions
+    # Matches lines like: int main(, void foo(, char* bar(, static int baz(
+    func_start_pattern = re.compile(
+        r'^[\s]*'  # Leading whitespace
+        r'[\w\s\*]+'  # Return type with qualifiers
+        r'\b(\w+)\s*\('  # Function name followed by (
+    )
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        
+        # Skip preprocessor, comments, empty lines
+        if not stripped or stripped.startswith('#') or stripped.startswith('//') or stripped.startswith('/*'):
+            i += 1
+            continue
+        
+        match = func_start_pattern.match(line)
+        if match:
+            func_name = match.group(1)
+            
+            # Skip keywords that look like functions
+            if func_name in ('if', 'while', 'for', 'switch', 'return', 'sizeof', 'typeof', 'defined', 'else'):
+                i += 1
+                continue
+            
+            # Check if there's a '{' nearby (function definition vs declaration)
+            found_brace = False
+            for k in range(i, min(i + 5, len(lines))):
+                if '{' in lines[k]:
+                    found_brace = True
+                    break
+                # Stop if we hit a semicolon (it's a declaration, not definition)
+                if ';' in lines[k] and '{' not in lines[k]:
+                    break
+            
+            if not found_brace:
+                i += 1
+                continue
+            
+            start_line = i + 1  # 1-indexed
+            
+            # Find matching closing brace
+            brace_count = 0
+            func_started = False
+            end_line = start_line
+            
+            for j in range(i, len(lines)):
+                for char in lines[j]:
+                    if char == '{':
+                        brace_count += 1
+                        func_started = True
+                    elif char == '}':
+                        brace_count -= 1
+                
+                if func_started and brace_count == 0:
+                    end_line = j + 1  # 1-indexed
+                    break
+            
+            # Extract function code
+            func_code = '\n'.join(lines[i:end_line])
+            functions.append(FunctionInfo(
+                name=func_name,
+                code=func_code,
+                start_line=start_line,
+                end_line=end_line
+            ))
+            i = end_line
+        else:
+            i += 1
+    
+    return functions
 
 
 def compute_sha256(file_path: Path) -> str:
@@ -379,17 +475,86 @@ class VSCodeScanner:
         
         Args:
             file_path: Path to the C/C++ source file
-            by_functions: Ignored - model predicts on entire file
+            by_functions: If True, scan each function individually (recommended)
         """
         try:
             # Read file content
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 code = f.read()
             
-            # Use model to predict on entire file
-            result = self.detector.predict(code)
+            # Extract functions from the file
+            functions = extract_functions_regex(code)
             
-            # Determine risk level based on score
+            if not functions:
+                # No functions found, scan the whole file
+                return self._scan_whole_file(file_path, code)
+            
+            # Scan each function individually
+            function_results = []
+            file_vulnerable = False
+            max_probability = 0.0
+            all_patterns = []
+            
+            for func in functions:
+                result = self.detector.predict(func.code)
+                risk_level = self._get_risk_level(result.score)
+                
+                func_result = {
+                    "function_name": func.name,
+                    "start_line": func.start_line,
+                    "end_line": func.end_line,
+                    "vulnerable": result.vulnerable,
+                    "probability": result.score,
+                    "risk_level": risk_level,
+                    "confidence": result.confidence,
+                    "detected_patterns": result.detected_patterns if hasattr(result, 'detected_patterns') else []
+                }
+                
+                if result.vulnerable:
+                    file_vulnerable = True
+                    function_results.append(func_result)
+                    all_patterns.extend(func_result["detected_patterns"])
+                
+                if result.score > max_probability:
+                    max_probability = result.score
+            
+            # Determine overall file risk level
+            overall_risk = self._get_risk_level(max_probability) if file_vulnerable else "SAFE"
+            
+            return {
+                "file_path": file_path,
+                "analysis_mode": "function_level",
+                "vulnerable": file_vulnerable,
+                "probability": max_probability,
+                "risk_level": overall_risk,
+                "dangerous_apis": list(set(all_patterns)),
+                "dangerous_lines": [],
+                "function_results": function_results,
+                "summary": {
+                    "functions_scanned": len(functions),
+                    "vulnerable_functions": len(function_results),
+                    "threshold": self.threshold
+                },
+                "error": None
+            }
+        except Exception as e:
+            return {
+                "file_path": file_path,
+                "analysis_mode": "error",
+                "vulnerable": False,
+                "probability": 0.0,
+                "risk_level": "ERROR",
+                "dangerous_apis": [],
+                "dangerous_lines": [],
+                "function_results": [],
+                "summary": {},
+                "error": str(e)
+            }
+    
+    def _scan_whole_file(self, file_path: str, code: str) -> Dict[str, Any]:
+        """Scan the whole file when no functions are found."""
+        try:
+            result = self.detector.predict(code)
             risk_level = self._get_risk_level(result.score)
             
             return {
@@ -398,8 +563,8 @@ class VSCodeScanner:
                 "vulnerable": result.vulnerable,
                 "probability": result.score,
                 "risk_level": risk_level,
-                "dangerous_apis": result.detected_patterns,
-                "dangerous_lines": [],  # Empty - model predicts on whole file, not individual lines
+                "dangerous_apis": result.detected_patterns if hasattr(result, 'detected_patterns') else [],
+                "dangerous_lines": [],
                 "function_results": [],
                 "summary": {
                     "confidence": result.confidence,
