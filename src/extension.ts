@@ -7,6 +7,7 @@ import { DevignScanner, ScanResult } from './scanner';
 import { ResultsPanel } from './resultsPanel';
 import { DecorationManager, DangerousLine, FileVulnerabilityResult, disposeDecorations, setExtensionPath } from './decorations';
 import { DevignSidebarProvider } from './sidebarProvider';
+import { DevignWebviewProvider } from './webview/DevignWebviewProvider';
 
 let scanner: DevignScanner;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -46,7 +47,7 @@ async function queuedScanDocument(document: vscode.TextDocument, isAutoScan: boo
         log(`Scan queued for: ${document.uri.fsPath}`);
         return;
     }
-    
+
     scanInProgress = true;
     try {
         await scanDocument(document, isAutoScan);
@@ -68,7 +69,7 @@ export function log(message: string) {
 export function activate(context: vscode.ExtensionContext) {
     outputChannel = vscode.window.createOutputChannel('Devign');
     context.subscriptions.push(outputChannel);
-    
+
     log('Devign Vulnerability Scanner is now active');
 
     diagnosticCollection = vscode.languages.createDiagnosticCollection('devign');
@@ -82,10 +83,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     scanner = new DevignScanner(context);
     decorationManager = DecorationManager.getInstance();
-    
+
     // Set extension path for tree-sitter initialization
     setExtensionPath(context.extensionPath);
-    
+
     // Initialize tree-sitter parser in background (dynamic import to avoid blocking)
     import('./parsers/treeSitterParser').then(({ initializeParser }) => {
         initializeParser(context.extensionPath)
@@ -98,6 +99,12 @@ export function activate(context: vscode.ExtensionContext) {
     // Register sidebar
     sidebarProvider = new DevignSidebarProvider();
     vscode.window.registerTreeDataProvider('devign.sidebar', sidebarProvider);
+
+    // Register Webview Provider
+    const provider = new DevignWebviewProvider(context.extensionUri);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(DevignWebviewProvider.viewType, provider)
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('devign.scanCurrentFile', () => scanCurrentFile()),
@@ -112,7 +119,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('devign.installDependencies', () => installDependencies()),
         vscode.commands.registerCommand('devign.clearCacheAndUpdate', () => clearCacheAndUpdate(context)),
         vscode.commands.registerCommand('devign.sidebar.refresh', () => sidebarProvider.refresh()),
-        vscode.commands.registerCommand('devign.revealResult', (args: {filePath: string, line: number, column?: number}) => revealResult(args)),
+        vscode.commands.registerCommand('devign.revealResult', (args: { filePath: string, line: number, column?: number }) => revealResult(args)),
         // Security Gate commands
         vscode.commands.registerCommand('devign.gate.run', () => runSecurityGate()),
         vscode.commands.registerCommand('devign.gate.configure', () => openGateSettings()),
@@ -124,7 +131,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     const config = vscode.workspace.getConfiguration('devign');
-    
+
     if (config.get<boolean>('scanOnSave')) {
         const debouncedSaveHandler = debounce(
             (doc: vscode.TextDocument) => queuedScanDocument(doc, true),
@@ -181,15 +188,15 @@ async function scanCurrentFile() {
 async function scanDocument(document: vscode.TextDocument, isAutoScan: boolean = false) {
     statusBarItem.text = '$(sync~spin) Scanning...';
     log(`Scanning file: ${document.uri.fsPath} (auto: ${isAutoScan})`);
-    
+
     try {
         const result = await scanner.scanFile(document.uri.fsPath);
         log(`Scan result: ${result.risk_level} (${(result.probability * 100).toFixed(1)}%)`);
-        
+
         updateDiagnostics(document.uri, result);
         updateStatusBar(result);
         showResultNotification(result, isAutoScan);
-        
+
         const editor = vscode.window.activeTextEditor;
         if (editor && editor.document.uri.toString() === document.uri.toString()) {
             // Apply vulnerability decoration using function-level results from Python
@@ -213,7 +220,7 @@ async function scanDocument(document: vscode.TextDocument, isAutoScan: boolean =
 
         // Update sidebar
         sidebarProvider.setResults([result]);
-        sidebarProvider.setStatus({ 
+        sidebarProvider.setStatus({
             lastScanTime: new Date(),
             totalIssues: result.function_results?.length || (result.vulnerable ? 1 : 0)
         });
@@ -249,13 +256,13 @@ function showScanError(message: string) {
 async function configurePython() {
     const config = vscode.workspace.getConfiguration('devign');
     const currentPath = config.get<string>('pythonPath') || 'python';
-    
+
     const result = await vscode.window.showInputBox({
         prompt: 'Enter path to Python executable',
         value: currentPath,
         placeHolder: 'python or /path/to/python'
     });
-    
+
     if (result) {
         await config.update('pythonPath', result, vscode.ConfigurationTarget.Global);
         log(`Python path updated to: ${result}`);
@@ -266,12 +273,12 @@ async function configurePython() {
 async function downloadModels(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('devign');
     const pythonPath = config.get<string>('pythonPath') || 'python';
-    const scannerScript = config.get<string>('scannerScript') || 
+    const scannerScript = config.get<string>('scannerScript') ||
         path.join(context.extensionPath, 'python', 'vscode_scanner.py');
-    
+
     outputChannel.show();
     log('Starting model download...');
-    
+
     vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: 'Devign: Downloading models',
@@ -281,15 +288,15 @@ async function downloadModels(context: vscode.ExtensionContext) {
             const proc = cp.spawn(pythonPath, [scannerScript, 'download'], {
                 cwd: path.dirname(scannerScript)
             });
-            
+
             proc.stdout.on('data', (data: Buffer) => {
                 log(data.toString().trim());
             });
-            
+
             proc.stderr.on('data', (data: Buffer) => {
                 log(`[stderr] ${data.toString().trim()}`);
             });
-            
+
             proc.on('close', (code) => {
                 if (code === 0) {
                     log('Model download completed successfully');
@@ -301,7 +308,7 @@ async function downloadModels(context: vscode.ExtensionContext) {
                     reject(new Error(`Exit code: ${code}`));
                 }
             });
-            
+
             proc.on('error', (err) => {
                 log(`Download process error: ${err.message}`);
                 reject(err);
@@ -342,15 +349,15 @@ async function scanWorkspace() {
             );
 
             diagnosticCollection.clear();
-            
+
             for (const result of results) {
                 const uri = vscode.Uri.file(result.file_path);
                 updateDiagnostics(uri, result);
             }
 
             const vulnCount = results.filter(r => r.vulnerable).length;
-            statusBarItem.text = vulnCount > 0 
-                ? `$(warning) Devign: ${vulnCount} issues` 
+            statusBarItem.text = vulnCount > 0
+                ? `$(warning) Devign: ${vulnCount} issues`
                 : '$(shield) Devign: OK';
 
             if (resultsPanel) {
@@ -418,28 +425,28 @@ function updateDiagnostics(uri: vscode.Uri, result: ScanResult) {
                     lineIndex,
                     line.column_end
                 );
-                
+
                 const severity = getDiagnosticSeverity(line.severity);
                 const funcInfo = line.function ? ` in ${line.function}()` : '';
                 const message = `[${line.api}]${funcInfo}: ${line.message}`;
-                
+
                 const diagnostic = new vscode.Diagnostic(range, message, severity);
                 diagnostic.source = 'Devign';
                 diagnostic.code = {
                     value: line.severity,
                     target: vscode.Uri.parse('https://github.com/hoangduy0308/C-Vul-Devign')
                 };
-                
+
                 diagnostics.push(diagnostic);
             }
         } else {
             const severity = getSeverity(result.risk_level);
             const range = new vscode.Range(0, 0, 0, 0);
-            
+
             const message = `Potential vulnerability detected (${(result.probability * 100).toFixed(1)}% confidence)\n` +
                 `Risk Level: ${result.risk_level}` +
-                (result.dangerous_apis.length > 0 
-                    ? `\nDangerous APIs: ${result.dangerous_apis.join(', ')}` 
+                (result.dangerous_apis.length > 0
+                    ? `\nDangerous APIs: ${result.dangerous_apis.join(', ')}`
                     : '');
 
             const diagnostic = new vscode.Diagnostic(range, message, severity);
@@ -448,7 +455,7 @@ function updateDiagnostics(uri: vscode.Uri, result: ScanResult) {
                 value: result.risk_level,
                 target: vscode.Uri.parse('https://github.com/hoangduy0308/C-Vul-Devign')
             };
-            
+
             diagnostics.push(diagnostic);
         }
     }
@@ -489,7 +496,7 @@ function updateStatusBar(result: ScanResult) {
         statusBarItem.text = '$(error) Devign Error';
         statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
     } else if (result.vulnerable) {
-        const icon = result.risk_level === 'CRITICAL' || result.risk_level === 'HIGH' 
+        const icon = result.risk_level === 'CRITICAL' || result.risk_level === 'HIGH'
             ? '$(error)' : '$(warning)';
         statusBarItem.text = `${icon} ${result.risk_level} (${(result.probability * 100).toFixed(0)}%)`;
         statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
@@ -507,13 +514,13 @@ function showResultNotification(result: ScanResult, isAutoScan: boolean = false)
 
     if (result.vulnerable) {
         const isHighRisk = result.risk_level === 'CRITICAL' || result.risk_level === 'HIGH';
-        
+
         if (isAutoScan && !isHighRisk) {
             return;
         }
-        
+
         const message = `Devign: ${result.risk_level} risk vulnerability detected (${(result.probability * 100).toFixed(1)}%)`;
-        
+
         if (isHighRisk) {
             vscode.window.showErrorMessage(message, 'Show Details').then(action => {
                 if (action === 'Show Details') {
@@ -559,15 +566,15 @@ async function runDoctor() {
     log('='.repeat(50));
     log('Devign Doctor - System Check');
     log('='.repeat(50));
-    
+
     const config = vscode.workspace.getConfiguration('devign');
     const pythonPath = config.get<string>('pythonPath') || 'python';
     const modelPath = config.get<string>('modelPath') || '';
-    
+
     log(`\n[Config]`);
     log(`  Python path: ${pythonPath}`);
     log(`  Model path: ${modelPath || '(default)'}`);
-    
+
     log(`\n[Python Check]`);
     try {
         const pythonVersion = await runCommand(pythonPath, ['--version']);
@@ -576,7 +583,7 @@ async function runDoctor() {
         log(`  ✗ Python not found at: ${pythonPath}`);
         log(`    Error: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
+
     log(`\n[Required Packages]`);
     const packages = [
         { name: 'torch', pipName: 'torch' },
@@ -594,7 +601,7 @@ async function runDoctor() {
             log(`  ✗ ${pkg.pipName} - NOT INSTALLED`);
         }
     }
-    
+
     log(`\n[Model Files]`);
     // Check in cache directory (where models are auto-downloaded)
     let cacheModelDir: string;
@@ -605,7 +612,7 @@ async function runDoctor() {
     }
     const checkModelDir = modelPath || cacheModelDir;
     log(`  Cache directory: ${checkModelDir}`);
-    
+
     const modelFiles = ['best_v2_seed42.pt', 'vocab.json', 'config.json'];
     for (const file of modelFiles) {
         const filePath = path.join(checkModelDir, file);
@@ -616,25 +623,25 @@ async function runDoctor() {
             log(`  ✗ ${file} - NOT FOUND`);
         }
     }
-    
+
     // Check if cache directory exists
     if (!fs.existsSync(checkModelDir)) {
         log(`\n  ⚠ Models not downloaded yet. Run "Clear Cache & Update" to download.`);
     }
-    
+
     log(`\n[Recommended Actions]`);
     log(`  • If packages missing: Click "Install Dependencies" or run: pip install torch tree-sitter tree-sitter-c numpy`);
     log(`  • If models missing: Click "Clear Cache & Update" in sidebar`);
     log(`  • If wrong Python: Set "devign.pythonPath" in VS Code settings`);
-    
+
     log(`\n${'='.repeat(50)}`);
     log('Doctor check complete');
-    
+
     // Offer to install missing packages
     const hasMissingPackages = !(await checkPackageInstalled(pythonPath, 'torch')) ||
-                               !(await checkPackageInstalled(pythonPath, 'tree_sitter')) ||
-                               !(await checkPackageInstalled(pythonPath, 'numpy'));
-    
+        !(await checkPackageInstalled(pythonPath, 'tree_sitter')) ||
+        !(await checkPackageInstalled(pythonPath, 'numpy'));
+
     if (hasMissingPackages) {
         const action = await vscode.window.showWarningMessage(
             'Some required packages are missing. Install them now?',
@@ -642,7 +649,7 @@ async function runDoctor() {
             'Configure Python',
             'Cancel'
         );
-        
+
         if (action === 'Install Dependencies') {
             vscode.commands.executeCommand('devign.installDependencies');
         } else if (action === 'Configure Python') {
@@ -667,15 +674,15 @@ function runCommand(command: string, args: string[]): Promise<string> {
         const proc = cp.spawn(command, args, { shell: false });
         let stdout = '';
         let stderr = '';
-        
+
         proc.stdout.on('data', (data: Buffer) => {
             stdout += data.toString();
         });
-        
+
         proc.stderr.on('data', (data: Buffer) => {
             stderr += data.toString();
         });
-        
+
         proc.on('close', (code) => {
             if (code === 0) {
                 resolve(stdout);
@@ -683,7 +690,7 @@ function runCommand(command: string, args: string[]): Promise<string> {
                 reject(new Error(stderr || stdout || `Exit code: ${code}`));
             }
         });
-        
+
         proc.on('error', reject);
     });
 }
@@ -691,23 +698,23 @@ function runCommand(command: string, args: string[]): Promise<string> {
 async function installDependencies() {
     const config = vscode.workspace.getConfiguration('devign');
     const pythonPath = config.get<string>('pythonPath') || 'python';
-    
+
     const packages = [
         'torch',
-        'numpy', 
+        'numpy',
         'tree-sitter',
         'tree-sitter-c'
     ];
-    
+
     const pipCommand = `${pythonPath} -m pip install ${packages.join(' ')}`;
-    
+
     const result = await vscode.window.showWarningMessage(
         `This will run the following pip command:\n\n${pipCommand}\n\nPackages to install:\n• ${packages.join('\n• ')}\n\nDo you want to continue?`,
         { modal: true },
         'Yes, Install',
         'Show Command Only'
     );
-    
+
     if (result === 'Show Command Only') {
         outputChannel.show();
         log('='.repeat(50));
@@ -720,16 +727,16 @@ async function installDependencies() {
         log(`\nTo install, run "Devign: Install Dependencies" and select "Yes, Install".`);
         return;
     }
-    
+
     if (result !== 'Yes, Install') {
         return;
     }
-    
+
     outputChannel.show();
     log('='.repeat(50));
     log('Installing Devign Dependencies');
     log('='.repeat(50));
-    
+
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: 'Devign: Installing dependencies',
@@ -737,13 +744,13 @@ async function installDependencies() {
     }, async (progress) => {
         for (let i = 0; i < packages.length; i++) {
             const pkg = packages[i];
-            progress.report({ 
+            progress.report({
                 message: `Installing ${pkg}... (${i + 1}/${packages.length})`,
                 increment: (100 / packages.length)
             });
-            
+
             log(`\nInstalling ${pkg}...`);
-            
+
             try {
                 const result = await runPipInstall(pythonPath, pkg);
                 log(`  ✓ ${pkg} installed successfully`);
@@ -755,12 +762,12 @@ async function installDependencies() {
                 log(`  ✗ Failed to install ${pkg}: ${message}`);
             }
         }
-        
+
         log('\n' + '='.repeat(50));
         log('Installation complete!');
         log('Run "Devign: Check Environment" to verify.');
     });
-    
+
     vscode.window.showInformationMessage(
         'Devign dependencies installed. Run "Check Environment" to verify.',
         'Check Environment'
@@ -776,17 +783,17 @@ function runPipInstall(pythonPath: string, pkg: string): Promise<string> {
         const proc = cp.spawn(pythonPath, ['-m', 'pip', 'install', pkg], { shell: false });
         let stdout = '';
         let stderr = '';
-        
+
         proc.stdout.on('data', (data: Buffer) => {
             const text = data.toString();
             stdout += text;
             log(`    ${text.trim()}`);
         });
-        
+
         proc.stderr.on('data', (data: Buffer) => {
             stderr += data.toString();
         });
-        
+
         proc.on('close', (code) => {
             if (code === 0) {
                 resolve(stdout);
@@ -794,7 +801,7 @@ function runPipInstall(pythonPath: string, pkg: string): Promise<string> {
                 reject(new Error(stderr || `Exit code: ${code}`));
             }
         });
-        
+
         proc.on('error', reject);
     });
 }
@@ -802,14 +809,14 @@ function runPipInstall(pythonPath: string, pkg: string): Promise<string> {
 function isPathContained(childPath: string, parentPath: string): boolean {
     const normalizedChild = path.resolve(childPath);
     const normalizedParent = path.resolve(parentPath);
-    return normalizedChild.startsWith(normalizedParent + path.sep) || 
-           normalizedChild === normalizedParent;
+    return normalizedChild.startsWith(normalizedParent + path.sep) ||
+        normalizedChild === normalizedParent;
 }
 
 async function clearCacheAndUpdate(context: vscode.ExtensionContext) {
     outputChannel.show();
     log('Clearing cache and updating models...');
-    
+
     // Determine cache directory based on platform
     let cacheDir: string;
     if (process.platform === 'win32') {
@@ -817,7 +824,7 @@ async function clearCacheAndUpdate(context: vscode.ExtensionContext) {
     } else {
         cacheDir = path.join(process.env.HOME || '', '.cache', 'devign-scanner', 'models');
     }
-    
+
     // Path containment validation to prevent directory traversal attacks
     const homeDir = os.homedir();
     const expectedBases = [
@@ -825,17 +832,17 @@ async function clearCacheAndUpdate(context: vscode.ExtensionContext) {
         path.join(process.env.LOCALAPPDATA || '', 'devign-scanner'),
         path.join(process.env.APPDATA || '', 'devign-scanner')
     ].filter(base => base && !base.startsWith(path.sep));
-    
+
     const normalizedCacheDir = path.resolve(cacheDir);
     const isValidPath = expectedBases.some(base => isPathContained(normalizedCacheDir, path.resolve(base)));
-    
+
     if (!isValidPath) {
         const message = `Refusing to delete ${cacheDir}: path is not in expected location`;
         log(message);
         vscode.window.showErrorMessage(message);
         return;
     }
-    
+
     try {
         // Delete cache
         if (fs.existsSync(cacheDir)) {
@@ -845,14 +852,14 @@ async function clearCacheAndUpdate(context: vscode.ExtensionContext) {
         } else {
             log('No cache found to clear');
         }
-        
+
         // Re-download models
         await downloadModels(context);
-        
+
         // Update sidebar status
         sidebarProvider.setStatus({ modelsVersion: 'latest (fresh)' });
         sidebarProvider.refresh();
-        
+
         vscode.window.showInformationMessage('Devign: Cache cleared and models updated');
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -861,17 +868,17 @@ async function clearCacheAndUpdate(context: vscode.ExtensionContext) {
     }
 }
 
-async function revealResult(args: {filePath: string, line: number, column?: number}) {
+async function revealResult(args: { filePath: string, line: number, column?: number }) {
     try {
         const uri = vscode.Uri.file(args.filePath);
         const document = await vscode.workspace.openTextDocument(uri);
         const editor = await vscode.window.showTextDocument(document);
-        
+
         const line = Math.max(0, args.line - 1);
         const column = args.column || 0;
         const position = new vscode.Position(line, column);
         const range = new vscode.Range(position, position);
-        
+
         editor.selection = new vscode.Selection(position, position);
         editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
     } catch (error) {
@@ -886,7 +893,7 @@ async function revealResult(args: {filePath: string, line: number, column?: numb
 async function runSecurityGate() {
     const config = vscode.workspace.getConfiguration('devign.gate');
     const enabled = config.get<boolean>('enabled');
-    
+
     if (!enabled) {
         const action = await vscode.window.showWarningMessage(
             'Security Gate is not enabled. Enable it now?',
@@ -894,7 +901,7 @@ async function runSecurityGate() {
             'Open Settings',
             'Cancel'
         );
-        
+
         if (action === 'Enable') {
             await config.update('enabled', true, vscode.ConfigurationTarget.Workspace);
             vscode.window.showInformationMessage('Security Gate enabled. Running scan...');
@@ -905,9 +912,9 @@ async function runSecurityGate() {
             return;
         }
     }
-    
+
     vscode.window.showInformationMessage('🔍 Running Security Gate scan on staged files...');
-    
+
     // For now, show a message - full implementation would use SecurityGateService
     vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
@@ -915,10 +922,10 @@ async function runSecurityGate() {
         cancellable: true
     }, async (progress) => {
         progress.report({ message: 'Scanning staged files...' });
-        
+
         // Simulate scan - in full implementation, this would call SecurityGateService
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
         progress.report({ message: 'Analysis complete' });
         vscode.window.showInformationMessage('✅ Security Gate: No issues found in staged files');
     });
@@ -932,11 +939,11 @@ async function commitWithGate() {
     const config = vscode.workspace.getConfiguration('devign.gate');
     const enabled = config.get<boolean>('enabled');
     const onCommit = config.get<boolean>('onCommit');
-    
+
     if (enabled && onCommit) {
         // Run security gate first
         vscode.window.showInformationMessage('🔍 Running Security Gate before commit...');
-        
+
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: 'Devign Security Gate',
@@ -946,11 +953,11 @@ async function commitWithGate() {
             await new Promise(resolve => setTimeout(resolve, 1500));
             progress.report({ message: 'Analysis complete' });
         });
-        
+
         // If passed, proceed with commit
         vscode.window.showInformationMessage('✅ Security Gate passed. Opening commit dialog...');
     }
-    
+
     // Open VS Code's built-in git commit
     vscode.commands.executeCommand('git.commit');
 }
@@ -959,11 +966,11 @@ async function pushWithGate() {
     const config = vscode.workspace.getConfiguration('devign.gate');
     const enabled = config.get<boolean>('enabled');
     const onPush = config.get<boolean>('onPush');
-    
+
     if (enabled && onPush) {
         // Run security gate first
         vscode.window.showInformationMessage('🔍 Running Security Gate before push...');
-        
+
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: 'Devign Security Gate',
@@ -973,24 +980,24 @@ async function pushWithGate() {
             await new Promise(resolve => setTimeout(resolve, 1500));
             progress.report({ message: 'Analysis complete' });
         });
-        
+
         // If passed, proceed with push
         vscode.window.showInformationMessage('✅ Security Gate passed. Pushing...');
     }
-    
+
     // Execute git push
     vscode.commands.executeCommand('git.push');
 }
 
 async function pullWithScan() {
     vscode.window.showInformationMessage('📥 Pulling changes...');
-    
+
     // Execute git pull first
     await vscode.commands.executeCommand('git.pull');
-    
+
     // Then scan changed files
     vscode.window.showInformationMessage('🔍 Scanning pulled files for vulnerabilities...');
-    
+
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: 'Devign Post-Pull Scan',
@@ -1000,7 +1007,7 @@ async function pullWithScan() {
         await new Promise(resolve => setTimeout(resolve, 2000));
         progress.report({ message: 'Scan complete' });
     });
-    
+
     vscode.window.showInformationMessage('✅ Post-pull scan complete. No vulnerabilities found.');
 }
 
@@ -1009,13 +1016,13 @@ export function deactivate() {
         resultsPanel.dispose();
     }
     disposeDecorations();
-    
+
     // Dispose tree-sitter parser if loaded
     import('./parsers/treeSitterParser').then(({ disposeParser }) => {
         disposeParser();
     }).catch(() => {
         // Ignore - module wasn't loaded
     });
-    
+
     log('Devign extension deactivated');
 }

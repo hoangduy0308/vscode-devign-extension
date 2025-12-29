@@ -55,6 +55,12 @@
           "id": "devign.gatePanel",
           "name": "Security Gate",
           "icon": "$(shield)"
+        },
+        {
+          "type": "webview",
+          "id": "devign.webview",
+          "name": "Devign Webview",
+          "icon": "resources/devign.svg"
         }
       ]
     },
