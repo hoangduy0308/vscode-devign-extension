@@ -422,14 +422,22 @@ class VSCodeScanner:
             }
     
     def _get_risk_level(self, score: float) -> str:
-        """Convert probability score to risk level."""
-        if score >= 0.8:
+        """Convert probability score to risk level.
+        
+        Based on threshold of 0.65:
+        - CRITICAL: >= 90% (very high confidence)
+        - HIGH: >= 75% (high confidence, above threshold)
+        - MEDIUM: >= 65% (at threshold)
+        - LOW: >= 50% (below threshold but notable)
+        - SAFE: < 50%
+        """
+        if score >= 0.9:
             return "CRITICAL"
-        elif score >= 0.6:
+        elif score >= 0.75:
             return "HIGH"
-        elif score >= 0.4:
+        elif score >= 0.65:
             return "MEDIUM"
-        elif score >= 0.2:
+        elif score >= 0.5:
             return "LOW"
         else:
             return "SAFE"
