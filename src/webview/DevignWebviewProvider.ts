@@ -4,6 +4,7 @@ import { getNonce } from '../utilities/getNonce';
 import { MessageType, ScanStatus, PROTOCOL_VERSION, Severity, type ScanResultPayload, type ScanStatusPayload } from '../types/messages';
 import { getSarifExportService, type SarifLog } from '../services/sarifExportService';
 import { getHtmlReportService, type HtmlReportData } from '../services/htmlReportService';
+import { GitService } from '../services/gitService';
 
 export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'devign.webview';
@@ -12,10 +13,13 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     private _debouncedScanTimers: Map<string, NodeJS.Timeout> = new Map();
     private static readonly TYPING_DEBOUNCE_MS = 500;
     private _currentSarifLog?: SarifLog;
+    private _gitService: GitService;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
-    ) { }
+    ) {
+        this._gitService = new GitService();
+    }
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -56,6 +60,10 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
                 }
                 case MessageType.EXPORT_REPORT: {
                     await this._handleExportReport();
+                    break;
+                }
+                case MessageType.GIT_ACTION: {
+                    await this._handleGitAction(data.payload);
                     break;
                 }
                 case 'hello': {
@@ -188,6 +196,32 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
         await htmlReportService.exportWithDialog(this._currentSarifLog, {
             title: 'Devign Security Report'
         });
+    }
+
+    private async _handleGitAction(payload: { action: string; data: any }) {
+        try {
+            switch (payload.action) {
+                case 'createBranch':
+                    await this._gitService.createBranch(payload.data);
+                    break;
+                case 'checkout':
+                    await this._gitService.checkout(payload.data);
+                    break;
+                case 'deleteBranch':
+                    await this._gitService.deleteBranch(payload.data);
+                    break;
+                case 'stage':
+                    await this._gitService.stage([vscode.Uri.file(payload.data)]);
+                    break;
+                case 'unstage':
+                    await this._gitService.unstage([vscode.Uri.file(payload.data)]);
+                    break;
+            }
+            // Refresh git status after action
+            // This would ideally be handled by an event listener on the git service
+        } catch (error) {
+            vscode.window.showErrorMessage(`Git action failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     public dispose() {

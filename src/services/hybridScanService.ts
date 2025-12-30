@@ -4,6 +4,7 @@ import { FunctionInfo, FunctionScanResult, FunctionScannerService } from './func
 import { extractFunctions, isCppFile } from '../parsers';
 import { DiffAnalyzer } from './diffAnalyzer';
 import { GitService } from './gitService';
+import { GateCacheService } from './gateCacheService';
 
 /**
  * Trigger types for hybrid scanning
@@ -46,22 +47,25 @@ export class HybridScanService {
     private functionScanner: FunctionScannerService;
     private diffAnalyzer: DiffAnalyzer;
     private gitService: GitService;
-    
+    private cacheService: GateCacheService;
+
     private debouncedTimers: Map<string, NodeJS.Timeout> = new Map();
     private lastScanResults: Map<string, HybridScanResult> = new Map();
     private functionHashCache: Map<string, Map<string, string>> = new Map();
-    
+
     private readonly TYPING_DEBOUNCE_MS = 800;
     private readonly _onScanComplete = new vscode.EventEmitter<HybridScanResult>();
     public readonly onScanComplete = this._onScanComplete.event;
 
     constructor(
         scanner: DevignScanner,
-        gitService: GitService
+        gitService: GitService,
+        context: vscode.ExtensionContext
     ) {
         this.scanner = scanner;
         this.gitService = gitService;
-        this.functionScanner = new FunctionScannerService(scanner);
+        this.cacheService = new GateCacheService(context);
+        this.functionScanner = new FunctionScannerService(scanner, 5, this.cacheService);
         this.diffAnalyzer = new DiffAnalyzer(gitService);
     }
 
@@ -74,7 +78,7 @@ export class HybridScanService {
         position: vscode.Position
     ): Promise<void> {
         const key = document.uri.toString();
-        
+
         const existingTimer = this.debouncedTimers.get(key);
         if (existingTimer) {
             clearTimeout(existingTimer);
@@ -103,10 +107,10 @@ export class HybridScanService {
         const startTime = Date.now();
         const content = document.getText();
         const filePath = document.uri.fsPath;
-        
+
         const functions = extractFunctions(content, filePath);
         const currentFunction = this.findFunctionAtPosition(functions, position);
-        
+
         if (!currentFunction) {
             return null;
         }
@@ -117,7 +121,7 @@ export class HybridScanService {
 
         const scanResults = await this.functionScanner.scanFunctions([currentFunction]);
         const endTime = Date.now();
-        
+
         const result: HybridScanResult = {
             trigger: 'typing',
             filePath,
@@ -130,7 +134,7 @@ export class HybridScanService {
 
         this.lastScanResults.set(filePath, result);
         this._onScanComplete.fire(result);
-        
+
         return result;
     }
 
@@ -152,7 +156,7 @@ export class HybridScanService {
 
         const allFunctions = extractFunctions(content, filePath);
         const changedFunctions = await this.getChangedFunctions(filePath, allFunctions);
-        
+
         if (changedFunctions.length === 0) {
             return {
                 trigger: 'save',
@@ -186,7 +190,7 @@ export class HybridScanService {
 
         this.lastScanResults.set(filePath, result);
         this._onScanComplete.fire(result);
-        
+
         return result;
     }
 
@@ -197,7 +201,7 @@ export class HybridScanService {
         cancellationToken?: vscode.CancellationToken
     ): Promise<HybridScanResult[]> {
         const stagedFunctions = await this.diffAnalyzer.getStagedFunctions();
-        
+
         if (stagedFunctions.length === 0) {
             return [];
         }
@@ -256,6 +260,7 @@ export class HybridScanService {
     dispose(): void {
         this.clearCache();
         this._onScanComplete.dispose();
+        this.cacheService.dispose();
     }
 
     private isSupportedFile(document: vscode.TextDocument): boolean {
@@ -267,13 +272,13 @@ export class HybridScanService {
         position: vscode.Position
     ): FunctionInfo | null {
         const line = position.line + 1; // Convert to 1-indexed
-        
+
         for (const func of functions) {
             if (line >= func.startLine && line <= func.endLine) {
                 return func;
             }
         }
-        
+
         return null;
     }
 
@@ -282,17 +287,17 @@ export class HybridScanService {
         currentFunctions: FunctionInfo[]
     ): Promise<FunctionInfo[]> {
         const previousHashes = this.functionHashCache.get(filePath);
-        
+
         if (!previousHashes) {
             return currentFunctions;
         }
 
         const changedFunctions: FunctionInfo[] = [];
-        
+
         for (const func of currentFunctions) {
             const currentHash = this.hashFunction(func);
             const previousHash = previousHashes.get(func.name);
-            
+
             if (previousHash !== currentHash) {
                 changedFunctions.push(func);
             }
@@ -303,11 +308,11 @@ export class HybridScanService {
 
     private updateFunctionHashes(filePath: string, functions: FunctionInfo[]): void {
         const hashes = new Map<string, string>();
-        
+
         for (const func of functions) {
             hashes.set(func.name, this.hashFunction(func));
         }
-        
+
         this.functionHashCache.set(filePath, hashes);
     }
 
@@ -323,13 +328,13 @@ export class HybridScanService {
 
     private groupFunctionsByFile(functions: FunctionInfo[]): Map<string, FunctionInfo[]> {
         const grouped = new Map<string, FunctionInfo[]>();
-        
+
         for (const func of functions) {
             const existing = grouped.get(func.filePath) || [];
             existing.push(func);
             grouped.set(func.filePath, existing);
         }
-        
+
         return grouped;
     }
 }
@@ -338,10 +343,11 @@ let hybridScanServiceInstance: HybridScanService | null = null;
 
 export function getHybridScanService(
     scanner: DevignScanner,
-    gitService: GitService
+    gitService: GitService,
+    context: vscode.ExtensionContext
 ): HybridScanService {
     if (!hybridScanServiceInstance) {
-        hybridScanServiceInstance = new HybridScanService(scanner, gitService);
+        hybridScanServiceInstance = new HybridScanService(scanner, gitService, context);
     }
     return hybridScanServiceInstance;
 }

@@ -1,4 +1,5 @@
 import { DevignScanner, ScanResult } from '../scanner';
+import { GateCacheService } from './gateCacheService';
 
 export interface FunctionInfo {
     name: string;
@@ -25,17 +26,22 @@ function djb2Hash(str: string): string {
 
 export class FunctionScannerService {
     private scanner: DevignScanner;
-    private cache: Map<string, ScanResult> = new Map();
     private batchSize: number;
+    private cacheService?: GateCacheService;
 
-    constructor(scanner: DevignScanner, batchSize: number = 5) {
+    constructor(
+        scanner: DevignScanner,
+        batchSize: number = 5,
+        cacheService?: GateCacheService
+    ) {
         this.scanner = scanner;
         this.batchSize = batchSize;
+        this.cacheService = cacheService;
     }
 
     async scanFunctions(functions: FunctionInfo[]): Promise<FunctionScanResult[]> {
         const results: FunctionScanResult[] = [];
-        
+
         for (let i = 0; i < functions.length; i += this.batchSize) {
             const batch = functions.slice(i, i + this.batchSize);
             const batchResults = await Promise.all(
@@ -43,25 +49,32 @@ export class FunctionScannerService {
             );
             results.push(...batchResults);
         }
-        
+
         return results;
     }
 
     private async scanFunction(functionInfo: FunctionInfo): Promise<FunctionScanResult> {
         const contentHash = djb2Hash(functionInfo.code);
-        
-        const cachedResult = this.cache.get(contentHash);
-        if (cachedResult) {
-            return {
-                ...cachedResult,
-                functionInfo,
-                contentHash,
-                cached: true
-            };
+
+        // Try global cache first
+        if (this.cacheService) {
+            const cachedResult = this.cacheService.get(contentHash);
+            if (cachedResult) {
+                return {
+                    ...cachedResult,
+                    functionInfo,
+                    contentHash,
+                    cached: true
+                };
+            }
         }
 
         const result = await this.scanner.scanCode(functionInfo.code);
-        this.cache.set(contentHash, result);
+
+        // Update global cache
+        if (this.cacheService) {
+            this.cacheService.set(contentHash, result);
+        }
 
         return {
             ...result,
@@ -72,10 +85,8 @@ export class FunctionScannerService {
     }
 
     clearCache(): void {
-        this.cache.clear();
-    }
-
-    getCacheSize(): number {
-        return this.cache.size;
+        if (this.cacheService) {
+            this.cacheService.clear();
+        }
     }
 }

@@ -39,6 +39,13 @@ interface Repository {
     add(paths: vscode.Uri[]): Promise<void>;
     revert(paths: vscode.Uri[]): Promise<void>;
     clean(paths: vscode.Uri[]): Promise<void>;
+    
+    // Branch operations
+    getBranches(query?: { remote?: boolean }): Promise<Ref[]>;
+    createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
+    checkout(treeish: string): Promise<void>;
+    deleteBranch(name: string, force?: boolean): Promise<void>;
+    renameBranch(name: string): Promise<void>;
 }
 
 interface RepositoryState {
@@ -65,6 +72,33 @@ interface Change {
     readonly uri: vscode.Uri;
     readonly originalUri: vscode.Uri;
     readonly status: number;
+}
+
+/**
+ * Git ref type (branch, tag, etc.)
+ */
+export enum RefType {
+    Head = 0,
+    RemoteHead = 1,
+    Tag = 2
+}
+
+interface Ref {
+    readonly type: RefType;
+    readonly name?: string;
+    readonly commit?: string;
+    readonly remote?: string;
+}
+
+/**
+ * Branch info for UI display
+ */
+export interface BranchInfo {
+    name: string;
+    type: 'local' | 'remote';
+    isCurrent: boolean;
+    commit?: string;
+    remote?: string;
 }
 
 /**
@@ -746,7 +780,209 @@ export class GitService {
             return { success: false, error: errorMessage };
         }
     }
+
+    // ==================== GIT-05: Branch Operations ====================
+
+    /**
+     * Get all branches (local and/or remote).
+     * @param options Query options: includeRemote to include remote branches
+     * @param repo Optional specific repository
+     * @returns Array of BranchInfo objects
+     */
+    public async getBranches(
+        options?: { includeRemote?: boolean },
+        repo?: Repository
+    ): Promise<BranchInfo[]> {
+        await this.ensureInitialized();
+
+        const repository = repo || await this.getActiveRepository();
+        if (!repository) {
+            console.log('GitService: Cannot get branches - no repository available');
+            return [];
+        }
+
+        try {
+            const refs = await repository.getBranches({ remote: options?.includeRemote ?? false });
+            const currentBranch = repository.state.HEAD?.name;
+
+            return refs
+                .filter(ref => ref.name) // Filter out refs without names
+                .map(ref => ({
+                    name: ref.name!,
+                    type: ref.type === RefType.RemoteHead ? 'remote' as const : 'local' as const,
+                    isCurrent: ref.name === currentBranch,
+                    commit: ref.commit,
+                    remote: ref.remote
+                }));
+        } catch (error) {
+            console.error('GitService: Failed to get branches:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get the current branch name.
+     * @param repo Optional specific repository
+     * @returns Current branch name or undefined if detached HEAD
+     */
+    public async getCurrentBranch(repo?: Repository): Promise<string | undefined> {
+        await this.ensureInitialized();
+
+        const repository = repo || await this.getActiveRepository();
+        if (!repository) {
+            console.log('GitService: Cannot get current branch - no repository available');
+            return undefined;
+        }
+
+        return repository.state.HEAD?.name;
+    }
+
+    /**
+     * Checkout a branch, tag, or commit.
+     * @param treeish Branch name, tag, or commit hash to checkout
+     * @param repo Optional specific repository
+     * @returns Operation result
+     */
+    public async checkout(treeish: string, repo?: Repository): Promise<GitOperationResult> {
+        await this.ensureInitialized();
+
+        const repository = repo || await this.getActiveRepository();
+        if (!repository) {
+            return { success: false, error: 'No repository available' };
+        }
+
+        try {
+            await repository.checkout(treeish);
+            console.log(`GitService: Checked out ${treeish}`);
+            return { success: true };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('GitService: Checkout failed:', errorMessage);
+            return { success: false, error: errorMessage };
+        }
+    }
+
+    /**
+     * Create a new branch.
+     * @param name Name of the new branch
+     * @param checkout Whether to checkout the new branch after creation
+     * @param ref Optional ref to create branch from (defaults to HEAD)
+     * @param repo Optional specific repository
+     * @returns Operation result
+     */
+    public async createBranch(
+        name: string,
+        checkout: boolean = true,
+        ref?: string,
+        repo?: Repository
+    ): Promise<GitOperationResult> {
+        await this.ensureInitialized();
+
+        const repository = repo || await this.getActiveRepository();
+        if (!repository) {
+            return { success: false, error: 'No repository available' };
+        }
+
+        try {
+            await repository.createBranch(name, checkout, ref);
+            console.log(`GitService: Created branch ${name}${checkout ? ' and checked out' : ''}`);
+            return { success: true };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('GitService: Create branch failed:', errorMessage);
+            return { success: false, error: errorMessage };
+        }
+    }
+
+    /**
+     * Delete a branch.
+     * @param name Branch name to delete
+     * @param force Force delete even if not fully merged
+     * @param repo Optional specific repository
+     * @returns Operation result
+     */
+    public async deleteBranch(
+        name: string,
+        force: boolean = false,
+        repo?: Repository
+    ): Promise<GitOperationResult> {
+        await this.ensureInitialized();
+
+        const repository = repo || await this.getActiveRepository();
+        if (!repository) {
+            return { success: false, error: 'No repository available' };
+        }
+
+        // Prevent deleting current branch
+        const currentBranch = repository.state.HEAD?.name;
+        if (name === currentBranch) {
+            return { success: false, error: 'Cannot delete the currently checked out branch' };
+        }
+
+        try {
+            await repository.deleteBranch(name, force);
+            console.log(`GitService: Deleted branch ${name}`);
+            return { success: true };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('GitService: Delete branch failed:', errorMessage);
+            return { success: false, error: errorMessage };
+        }
+    }
+
+    /**
+     * Rename the current branch.
+     * @param newName New name for the current branch
+     * @param repo Optional specific repository
+     * @returns Operation result
+     */
+    public async renameBranch(newName: string, repo?: Repository): Promise<GitOperationResult> {
+        await this.ensureInitialized();
+
+        const repository = repo || await this.getActiveRepository();
+        if (!repository) {
+            return { success: false, error: 'No repository available' };
+        }
+
+        try {
+            await repository.renameBranch(newName);
+            console.log(`GitService: Renamed current branch to ${newName}`);
+            return { success: true };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('GitService: Rename branch failed:', errorMessage);
+            return { success: false, error: errorMessage };
+        }
+    }
+
+    /**
+     * Get repository status summary for UI display.
+     * @param repo Optional specific repository
+     * @returns Status summary object
+     */
+    public async getStatus(repo?: Repository): Promise<{
+        branch: string | undefined;
+        staged: number;
+        unstaged: number;
+        conflicts: number;
+        ahead: number;
+        behind: number;
+    } | undefined> {
+        const snapshot = await this.getRepositorySnapshot(repo);
+        if (!snapshot) {
+            return undefined;
+        }
+
+        return {
+            branch: snapshot.branchName,
+            staged: snapshot.staged.length,
+            unstaged: snapshot.unstaged.length,
+            conflicts: snapshot.mergeConflicts.length,
+            ahead: 0,  // TODO: Implement ahead/behind tracking if needed
+            behind: 0
+        };
+    }
 }
 
 // Export types for consumers
-export type { Repository, RepositoryState, Branch, Remote, Change };
+export type { Repository, RepositoryState, Branch, Remote, Change, Ref };

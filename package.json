@@ -152,6 +152,21 @@
         "command": "devign.gate.configure",
         "title": "Devign: Configure Security Gate",
         "icon": "$(gear)"
+      },
+      {
+        "command": "devign.github.signIn",
+        "title": "Devign: Sign In to GitHub",
+        "icon": "$(github)"
+      },
+      {
+        "command": "devign.github.signOut",
+        "title": "Devign: Sign Out from GitHub",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "devign.github.status",
+        "title": "Devign: GitHub Status",
+        "icon": "$(account)"
       }
     ],
     "configuration": {

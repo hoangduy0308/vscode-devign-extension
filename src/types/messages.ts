@@ -17,7 +17,8 @@ export enum MessageType {
     STOP_SCAN = 'STOP_SCAN',
     OPEN_FILE = 'OPEN_FILE',
     UPDATE_CONFIG = 'UPDATE_CONFIG',
-    EXPORT_REPORT = 'EXPORT_REPORT'
+    EXPORT_REPORT = 'EXPORT_REPORT',
+    GIT_ACTION = 'GIT_ACTION'
 }
 
 export enum ScanStatus {
@@ -108,6 +109,14 @@ export const OpenFileMessageSchema = BaseMessageSchema.extend({
     })
 });
 
+export const GitActionMessageSchema = BaseMessageSchema.extend({
+    type: z.literal(MessageType.GIT_ACTION),
+    payload: z.object({
+        action: z.enum(['createBranch', 'checkout', 'deleteBranch', 'stage', 'unstage']),
+        data: z.any()
+    })
+});
+
 // Type Definitions derived from Schemas
 export type Range = z.infer<typeof RangeSchema>;
 export type Vulnerability = z.infer<typeof VulnerabilitySchema>;
@@ -120,4 +129,5 @@ export type ExtensionMessage =
 
 export type WebviewMessage =
     | z.infer<typeof StartScanMessageSchema>
-    | z.infer<typeof OpenFileMessageSchema>;
+    | z.infer<typeof OpenFileMessageSchema>
+    | z.infer<typeof GitActionMessageSchema>;

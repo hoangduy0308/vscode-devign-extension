@@ -8,6 +8,8 @@ import { ResultsPanel } from './resultsPanel';
 import { DecorationManager, DangerousLine, FileVulnerabilityResult, disposeDecorations, setExtensionPath } from './decorations';
 import { DevignSidebarProvider } from './sidebarProvider';
 import { DevignWebviewProvider } from './webview/DevignWebviewProvider';
+import { disposeHybridScanService } from './services/hybridScanService';
+import { getGitHubAuthService } from './services/githubAuthService';
 
 let scanner: DevignScanner;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -127,7 +129,11 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('devign.gate.push', () => pushWithGate()),
         vscode.commands.registerCommand('devign.commitWithGate', () => commitWithGate()),
         vscode.commands.registerCommand('devign.pushWithGate', () => pushWithGate()),
-        vscode.commands.registerCommand('devign.pullWithScan', () => pullWithScan())
+        vscode.commands.registerCommand('devign.pullWithScan', () => pullWithScan()),
+        // GitHub auth commands
+        vscode.commands.registerCommand('devign.github.signIn', () => signInToGitHub()),
+        vscode.commands.registerCommand('devign.github.signOut', () => signOutFromGitHub()),
+        vscode.commands.registerCommand('devign.github.status', () => showGitHubStatus())
     );
 
     const config = vscode.workspace.getConfiguration('devign');
@@ -1011,11 +1017,73 @@ async function pullWithScan() {
     vscode.window.showInformationMessage('✅ Post-pull scan complete. No vulnerabilities found.');
 }
 
+// ============================================================================
+// GitHub Authentication Commands
+// ============================================================================
+
+async function signInToGitHub() {
+    const authService = getGitHubAuthService();
+    const session = await authService.signIn();
+    
+    if (session) {
+        log(`Signed in to GitHub as ${session.account.label}`);
+    }
+}
+
+async function signOutFromGitHub() {
+    const authService = getGitHubAuthService();
+    await authService.signOut();
+    log('Signed out from GitHub');
+}
+
+async function showGitHubStatus() {
+    const authService = getGitHubAuthService();
+    const isAuth = await authService.isAuthenticated();
+    
+    if (isAuth) {
+        const user = authService.getCurrentUser();
+        const userInfo = await authService.fetchUserInfo();
+        
+        if (userInfo) {
+            vscode.window.showInformationMessage(
+                `GitHub: Signed in as ${userInfo.login}${userInfo.name ? ` (${userInfo.name})` : ''}`,
+                'Sign Out'
+            ).then(action => {
+                if (action === 'Sign Out') {
+                    signOutFromGitHub();
+                }
+            });
+        } else {
+            vscode.window.showInformationMessage(
+                `GitHub: Signed in as ${user?.label || 'Unknown'}`,
+                'Sign Out'
+            ).then(action => {
+                if (action === 'Sign Out') {
+                    signOutFromGitHub();
+                }
+            });
+        }
+    } else {
+        vscode.window.showInformationMessage(
+            'GitHub: Not signed in',
+            'Sign In'
+        ).then(action => {
+            if (action === 'Sign In') {
+                signInToGitHub();
+            }
+        });
+    }
+}
+
 export function deactivate() {
     if (resultsPanel) {
         resultsPanel.dispose();
     }
     disposeDecorations();
+    disposeHybridScanService();
+    
+    // Dispose GitHub auth service
+    getGitHubAuthService().dispose();
 
     // Dispose tree-sitter parser if loaded
     import('./parsers/treeSitterParser').then(({ disposeParser }) => {

@@ -23,11 +23,21 @@ function App() {
   // Mock data for new components (will be replaced by real data later)
   const [gateStatus] = useState<GateStatus>('PENDING');
   const [gateProgress] = useState(0);
-  const [gitStatus] = useState({
+  const [gitStatus, setGitStatus] = useState({
     branch: 'feature/slice-2',
+    branches: ['main', 'develop', 'feature/slice-2'],
     staged: ['src/components/Dashboard.tsx', 'src/components/SecurityGate.tsx'],
     unstaged: ['src/App.tsx']
   });
+
+  const handleGitAction = (action: string, data: any) => {
+    if (vscode) {
+      vscode.postMessage({
+        type: MessageType.GIT_ACTION,
+        payload: { action, data }
+      });
+    }
+  };
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -60,8 +70,8 @@ function App() {
 
   const handleVulnerabilityClick = (vuln: { file: string; line: number }) => {
     if (vscode) {
-      vscode.postMessage({ 
-        type: MessageType.OPEN_FILE, 
+      vscode.postMessage({
+        type: MessageType.OPEN_FILE,
         payload: { file: vuln.file, line: vuln.line }
       });
     }
@@ -74,21 +84,19 @@ function App() {
         <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3">
           <button
             onClick={() => setViewMode('dashboard')}
-            className={`px-3 py-1.5 rounded text-sm font-medium ${
-              viewMode === 'dashboard' 
-                ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]' 
+            className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'dashboard'
+                ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
                 : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
-            }`}
+              }`}
           >
             Dashboard
           </button>
           <button
             onClick={() => setViewMode('report')}
-            className={`px-3 py-1.5 rounded text-sm font-medium ${
-              viewMode === 'report' 
-                ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]' 
+            className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'report'
+                ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
                 : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
-            }`}
+              }`}
           >
             Report
           </button>
@@ -116,8 +124,14 @@ function App() {
                 />
                 <GitPanel
                   branch={gitStatus.branch}
+                  branches={gitStatus.branches}
                   stagedFiles={gitStatus.staged}
                   unstagedFiles={gitStatus.unstaged}
+                  onBranchChange={(branch) => handleGitAction('checkout', branch)}
+                  onCreateBranch={(name) => handleGitAction('createBranch', name)}
+                  onDeleteBranch={(name) => handleGitAction('deleteBranch', name)}
+                  onStageFile={(file) => handleGitAction('stage', file)}
+                  onUnstageFile={(file) => handleGitAction('unstage', file)}
                 />
               </div>
             </div>
@@ -137,7 +151,7 @@ function App() {
           </>
         ) : (
           reportData ? (
-            <ReportPanel 
+            <ReportPanel
               data={reportData}
               onExport={handleExportReport}
               onVulnerabilityClick={handleVulnerabilityClick}

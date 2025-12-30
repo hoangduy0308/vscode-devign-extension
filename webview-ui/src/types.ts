@@ -43,7 +43,8 @@ export const MessageType = {
     SCAN_STATUS: 'SCAN_STATUS',
     OPEN_FILE: 'OPEN_FILE',
     REPORT_DATA: 'REPORT_DATA',
-    EXPORT_REPORT: 'EXPORT_REPORT'
+    EXPORT_REPORT: 'EXPORT_REPORT',
+    GIT_ACTION: 'GIT_ACTION'
 } as const;
 
 export type MessageType = typeof MessageType[keyof typeof MessageType];
