@@ -126,7 +126,7 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
               aria-label="Scan progress"
             >
               <div 
-                className="h-full bg-[var(--color-interactive-primary)] transition-all duration-300 ease-out"
+                className="h-full bg-[var(--color-interactive-primary)] transition-all duration-300 ease-out animate-pulse"
                 style={{ width: `${progress}%` }}
               />
             </div>

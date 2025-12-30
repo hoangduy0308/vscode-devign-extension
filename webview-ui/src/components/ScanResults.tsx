@@ -326,9 +326,9 @@ export const ScanResults: React.FC<ScanResultsProps> = ({ results }) => {
             </div>
 
             {/* List */}
-            <div ref={listRef} className="flex flex-col gap-3" role="list">
+            <div ref={listRef} className="flex flex-col gap-3 stagger-children" role="list">
                 {processedVulnerabilities.length === 0 ? (
-                    <div className="text-center text-[var(--vscode-descriptionForeground)] py-8 flex flex-col items-center gap-2" role="status">
+                    <div className="text-center text-[var(--vscode-descriptionForeground)] py-8 flex flex-col items-center gap-2 animate-fade-in" role="status">
                         <i className="codicon codicon-check text-2xl text-[var(--vscode-charts-green)]" aria-hidden="true"></i>
                         {searchQuery ? 'No vulnerabilities match your search.' : 'No vulnerabilities found matching filters.'}
                     </div>
@@ -351,7 +351,7 @@ export const ScanResults: React.FC<ScanResultsProps> = ({ results }) => {
                                     <span className="text-xs text-[var(--color-text-secondary)]">{vulns.length} issues</span>
                                 </button>
                                 {!isCollapsed && (
-                                    <div className="flex flex-col gap-2 p-2">
+                                    <div className="flex flex-col gap-2 p-2 stagger-children">
                                         {vulns.map((vuln, idx) => renderVulnerabilityCard(vuln, startIndex + idx))}
                                     </div>
                                 )}
