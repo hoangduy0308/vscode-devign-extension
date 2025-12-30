@@ -10,6 +10,8 @@ import { PushCommand } from '../commands/pushCommand';
 import { PullCommand } from '../commands/pullCommand';
 import { SecurityGateService } from '../services/securityGateService';
 
+const VALID_MESSAGE_TYPES = new Set(Object.values(MessageType));
+
 export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'devign.webview';
     private _view?: vscode.WebviewView;
@@ -53,8 +55,24 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
         webviewView.onDidDispose(() => this.dispose());
     }
 
+    private _isValidMessage(data: unknown): data is { type: MessageType; payload?: any } {
+        if (!data || typeof data !== 'object') {
+            return false;
+        }
+        const msg = data as Record<string, unknown>;
+        if (typeof msg.type !== 'string' || !VALID_MESSAGE_TYPES.has(msg.type as MessageType)) {
+            return false;
+        }
+        return true;
+    }
+
     private _setupMessageHandlers(webview: vscode.Webview) {
         webview.onDidReceiveMessage(async (data) => {
+            if (!this._isValidMessage(data)) {
+                console.warn('[Devign] Received invalid webview message:', data);
+                return;
+            }
+
             switch (data.type) {
                 case MessageType.START_SCAN: {
                     await this._handleStartScan(data.payload);
@@ -74,10 +92,6 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
                 }
                 case MessageType.GIT_ACTION: {
                     await this._handleGitAction(data.payload);
-                    break;
-                }
-                case 'hello': {
-                    vscode.window.showInformationMessage(data.value);
                     break;
                 }
             }
