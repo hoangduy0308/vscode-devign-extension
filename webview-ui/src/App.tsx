@@ -10,6 +10,20 @@ import { messages, state, type GitAction, type ScanStatusPayload } from './utili
 
 type ViewMode = 'dashboard' | 'report';
 
+// Helper to convert scan status to gate status
+const getGateStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanResultPayload | null): GateStatus => {
+  if (scanStatus.status === 'scanning') return 'PENDING';
+  if (scanStatus.status === 'error') return 'FAILED';
+  if (scanStatus.status === 'completed' || scanResult) {
+    const hasCritical = scanResult?.summary.critical && scanResult.summary.critical > 0;
+    const hasHigh = scanResult?.summary.high && scanResult.summary.high > 0;
+    if (hasCritical) return 'FAILED';
+    if (hasHigh) return 'WARNING';
+    return 'PASSED';
+  }
+  return 'PENDING';
+};
+
 function App() {
   const [scanResult, setScanResult] = useState<ScanResultPayload | null>(null);
   const [reportData, setReportData] = useState<ReportData | null>(null);
@@ -19,9 +33,11 @@ function App() {
     return savedState?.viewMode || 'dashboard';
   });
 
-  // Mock data for new components (will be replaced by real data later)
-  const [gateStatus] = useState<GateStatus>('PENDING');
-  const [gateProgress] = useState(0);
+  // Derive gate status from scan status and results
+  const gateStatus = getGateStatusFromScan(scanStatus, scanResult);
+  const gateProgress = scanStatus.progress ?? (scanStatus.status === 'completed' ? 100 : 0);
+
+  // Mock data for git panel (will be replaced by real data later)
   const [gitStatus] = useState({
     branch: 'feature/slice-2',
     branches: ['main', 'develop', 'feature/slice-2'],
