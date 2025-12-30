@@ -477,6 +477,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^18.0.0",
+    "@types/sinon": "^21.0.0",
     "@types/uuid": "^10.0.0",
     "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
@@ -484,6 +485,7 @@
     "@vscode/vsce": "^2.22.0",
     "eslint": "^8.0.0",
     "mocha": "^11.7.5",
+    "sinon": "^21.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
   },
