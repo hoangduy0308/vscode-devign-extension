@@ -9,6 +9,7 @@ export enum MessageType {
     SCAN_RESULT = 'SCAN_RESULT',
     SCAN_STATUS = 'SCAN_STATUS',
     GIT_STATUS = 'GIT_STATUS',
+    GATE_STATUS = 'GATE_STATUS',
     CONFIGURATION = 'CONFIGURATION',
     REPORT_DATA = 'REPORT_DATA',
 
@@ -26,6 +27,28 @@ export enum ScanStatus {
     SCANNING = 'scanning',
     COMPLETED = 'completed',
     FAILED = 'failed'
+}
+
+// Git Status Payload
+export interface GitStatusPayload {
+    branch: string;
+    branches: string[];
+    staged: string[];
+    unstaged: string[];
+    remotes?: string[];
+    isPushing?: boolean;
+    isPulling?: boolean;
+}
+
+// Gate Status Payload
+export interface GateStatusPayload {
+    status: 'PASSED' | 'FAILED' | 'WARNING' | 'PENDING';
+    progress: number;
+    blockingReasons?: string[];
+    lastDecision?: 'PASS' | 'WARN' | 'BLOCK';
+    lastRunTime?: number;
+    scannedFilesCount?: number;
+    scannedFunctionsCount?: number;
 }
 
 export enum Severity {

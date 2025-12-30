@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { getUri } from '../utilities/getUri';
 import { getNonce } from '../utilities/getNonce';
-import { MessageType, ScanStatus, PROTOCOL_VERSION, Severity, type ScanResultPayload, type ScanStatusPayload } from '../types/messages';
+import { MessageType, ScanStatus, PROTOCOL_VERSION, Severity, type ScanResultPayload, type ScanStatusPayload, type GitStatusPayload, type GateStatusPayload } from '../types/messages';
 import { getSarifExportService, type SarifLog } from '../services/sarifExportService';
 import { getHtmlReportService, type HtmlReportData } from '../services/htmlReportService';
 import { GitService } from '../services/gitService';
@@ -51,6 +51,9 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
 
         this._setupMessageHandlers(webviewView.webview);
         this._setupTypingListener();
+
+        // Send initial git status
+        this._sendInitialGitStatus();
 
         webviewView.onDidDispose(() => this.dispose());
     }
@@ -201,6 +204,54 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
             version: PROTOCOL_VERSION,
             payload: data
         });
+    }
+
+    public postGitStatus(status: GitStatusPayload): void {
+        this._view?.webview.postMessage({
+            type: MessageType.GIT_STATUS,
+            version: PROTOCOL_VERSION,
+            payload: status
+        });
+    }
+
+    public postGateStatus(status: GateStatusPayload): void {
+        this._view?.webview.postMessage({
+            type: MessageType.GATE_STATUS,
+            version: PROTOCOL_VERSION,
+            payload: status
+        });
+    }
+
+    private async _sendInitialGitStatus(): Promise<void> {
+        try {
+            const currentBranch = await this._gitService.getCurrentBranch();
+            const branches = await this._gitService.getBranches();
+            const snapshot = await this._gitService.getRepositorySnapshot();
+            
+            const gitStatus: GitStatusPayload = {
+                branch: currentBranch || 'main',
+                branches: branches.map(b => b.name),
+                staged: snapshot?.staged.map(f => f.filePath) || [],
+                unstaged: snapshot?.unstaged.map(f => f.filePath) || [],
+                remotes: ['origin'],
+                isPushing: false,
+                isPulling: false
+            };
+            
+            this.postGitStatus(gitStatus);
+        } catch (error) {
+            console.error('[Devign] Failed to get initial git status:', error);
+            // Send empty status to clear connecting state
+            this.postGitStatus({
+                branch: 'unknown',
+                branches: [],
+                staged: [],
+                unstaged: [],
+                remotes: [],
+                isPushing: false,
+                isPulling: false
+            });
+        }
     }
 
     public setSarifLog(sarifLog: SarifLog) {

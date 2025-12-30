@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { type ScanResultPayload, type ReportData, MessageType } from './types';
+import { type ScanResultPayload, type ReportData, type GitStatusPayload, type GateStatusPayload, MessageType } from './types';
 import { ScanResults } from './components/ScanResults';
 import { Dashboard } from './components/Dashboard';
 import { SecurityGate, type GateStatus } from './components/SecurityGate';
@@ -36,17 +36,14 @@ function App() {
   // Ref for scroll container
   const mainRef = useRef<HTMLElement>(null);
 
-  // Derive gate status from scan status and results
-  const gateStatus = getGateStatusFromScan(scanStatus, scanResult);
-  const gateProgress = scanStatus.progress ?? (scanStatus.status === 'completed' ? 100 : 0);
+  // Real data state from extension
+  const [gitStatus, setGitStatus] = useState<GitStatusPayload | null>(null);
+  const [gateStatusData, setGateStatusData] = useState<GateStatusPayload | null>(null);
+  const [isConnecting, setIsConnecting] = useState(true);
 
-  // Mock data for git panel (will be replaced by real data later)
-  const [gitStatus] = useState({
-    branch: 'feature/slice-2',
-    branches: ['main', 'develop', 'feature/slice-2'],
-    staged: ['src/components/Dashboard.tsx', 'src/components/SecurityGate.tsx'],
-    unstaged: ['src/App.tsx']
-  });
+  // Derive gate status from scan status and results (fallback when no gateStatusData)
+  const gateStatus = gateStatusData?.status ?? getGateStatusFromScan(scanStatus, scanResult);
+  const gateProgress = gateStatusData?.progress ?? scanStatus.progress ?? (scanStatus.status === 'completed' ? 100 : 0);
 
   // Restore scroll position on mount
   useEffect(() => {
@@ -136,6 +133,13 @@ function App() {
             }, 2000);
           }
           break;
+        case MessageType.GIT_STATUS:
+          setGitStatus(message.payload);
+          setIsConnecting(false);
+          break;
+        case MessageType.GATE_STATUS:
+          setGateStatusData(message.payload);
+          break;
       }
     };
 
@@ -166,6 +170,16 @@ function App() {
         status={scanStatus} 
         onClose={() => setScanStatus({ status: 'idle' })}
       />
+      
+      {/* Connecting State */}
+      {isConnecting && (
+        <div className="fixed inset-0 bg-[var(--vscode-editor-background)] bg-opacity-80 flex items-center justify-center z-50">
+          <div className="flex flex-col items-center gap-3 p-6 bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg shadow-lg">
+            <div className="animate-spin w-8 h-8 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div>
+            <span className="text-sm text-[var(--vscode-descriptionForeground)]">Connecting to extension...</span>
+          </div>
+        </div>
+      )}
       
       <main 
         ref={mainRef}
@@ -228,19 +242,32 @@ function App() {
                   onAllowCommit={() => console.log('Allow commit')}
                   onBlockCommit={() => console.log('Block commit')}
                 />
-                <GitPanel
-                  branch={gitStatus.branch}
-                  branches={gitStatus.branches}
-                  stagedFiles={gitStatus.staged}
-                  unstagedFiles={gitStatus.unstaged}
-                  onBranchChange={(branch) => handleGitAction('checkout', branch)}
-                  onCreateBranch={(name) => handleGitAction('createBranch', name)}
-                  onDeleteBranch={(name) => handleGitAction('deleteBranch', name)}
-                  onStageFile={(file) => handleGitAction('stage', file)}
-                  onUnstageFile={(file) => handleGitAction('unstage', file)}
-                  onPush={(remote) => handleGitAction('push', { remote })}
-                  onPull={(remote) => handleGitAction('pull', { remote })}
-                />
+                {gitStatus ? (
+                  <GitPanel
+                    branch={gitStatus.branch}
+                    branches={gitStatus.branches}
+                    stagedFiles={gitStatus.staged}
+                    unstagedFiles={gitStatus.unstaged}
+                    remotes={gitStatus.remotes}
+                    isPushing={gitStatus.isPushing}
+                    isPulling={gitStatus.isPulling}
+                    onBranchChange={(branch) => handleGitAction('checkout', branch)}
+                    onCreateBranch={(name) => handleGitAction('createBranch', name)}
+                    onDeleteBranch={(name) => handleGitAction('deleteBranch', name)}
+                    onStageFile={(file) => handleGitAction('stage', file)}
+                    onUnstageFile={(file) => handleGitAction('unstage', file)}
+                    onPush={(remote) => handleGitAction('push', { remote })}
+                    onPull={(remote) => handleGitAction('pull', { remote })}
+                  />
+                ) : (
+                  <div className="p-4 bg-[var(--vscode-editor-background)] rounded-lg shadow-sm border border-[var(--vscode-panel-border)]">
+                    <h2 className="text-lg font-bold text-[var(--vscode-foreground)] mb-3">Git Status</h2>
+                    <div className="flex items-center gap-2 text-[var(--vscode-descriptionForeground)]">
+                      <div className="animate-spin w-4 h-4 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div>
+                      <span className="text-sm">Loading git status...</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

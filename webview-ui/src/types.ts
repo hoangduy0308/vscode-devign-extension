@@ -83,3 +83,25 @@ export interface ReportData {
     vulnerabilities: ReportVulnerability[];
     generatedAt: string;
 }
+
+// Git Status Payload
+export interface GitStatusPayload {
+    branch: string;
+    branches: string[];
+    staged: string[];
+    unstaged: string[];
+    remotes?: string[];
+    isPushing?: boolean;
+    isPulling?: boolean;
+}
+
+// Gate Status Payload
+export interface GateStatusPayload {
+    status: 'PASSED' | 'FAILED' | 'WARNING' | 'PENDING';
+    progress: number;
+    blockingReasons?: string[];
+    lastDecision?: 'PASS' | 'WARN' | 'BLOCK';
+    lastRunTime?: number;
+    scannedFilesCount?: number;
+    scannedFunctionsCount?: number;
+}
