@@ -10,6 +10,8 @@ import { DevignSidebarProvider } from './sidebarProvider';
 import { DevignWebviewProvider } from './webview/DevignWebviewProvider';
 import { disposeHybridScanService } from './services/hybridScanService';
 import { getGitHubAuthService } from './services/githubAuthService';
+import { getPRService } from './services/prService';
+import { GitService } from './services/gitService';
 
 let scanner: DevignScanner;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -133,7 +135,9 @@ export function activate(context: vscode.ExtensionContext) {
         // GitHub auth commands
         vscode.commands.registerCommand('devign.github.signIn', () => signInToGitHub()),
         vscode.commands.registerCommand('devign.github.signOut', () => signOutFromGitHub()),
-        vscode.commands.registerCommand('devign.github.status', () => showGitHubStatus())
+        vscode.commands.registerCommand('devign.github.status', () => showGitHubStatus()),
+        // PR commands
+        vscode.commands.registerCommand('devign.createPR', () => createPullRequest())
     );
 
     const config = vscode.workspace.getConfiguration('devign');
@@ -1073,6 +1077,34 @@ async function showGitHubStatus() {
             }
         });
     }
+}
+
+// ============================================================================
+// Pull Request Commands
+// ============================================================================
+
+async function createPullRequest() {
+    const gitService = new GitService();
+    const prService = getPRService(gitService);
+    
+    // Check if we're in a git repo
+    const isAvailable = await gitService.isAvailable();
+    if (!isAvailable) {
+        vscode.window.showErrorMessage('No Git repository found');
+        return;
+    }
+    
+    // Try to get current SARIF log from webview or recent scan
+    let sarifLog = undefined;
+    try {
+        const { getSarifExportService } = await import('./services/sarifExportService');
+        // Use recent scan results if available
+        // For now, we'll show dialog without SARIF - user can run scan first
+    } catch {
+        // No SARIF available
+    }
+    
+    await prService.showCreatePRDialog(sarifLog);
 }
 
 export function deactivate() {

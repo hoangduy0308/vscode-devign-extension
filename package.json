@@ -167,6 +167,11 @@
         "command": "devign.github.status",
         "title": "Devign: GitHub Status",
         "icon": "$(account)"
+      },
+      {
+        "command": "devign.createPR",
+        "title": "Devign: Create Pull Request with Scan Summary",
+        "icon": "$(git-pull-request)"
       }
     ],
     "configuration": {
