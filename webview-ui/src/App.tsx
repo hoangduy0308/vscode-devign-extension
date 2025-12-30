@@ -6,6 +6,7 @@ import { SecurityGate, type GateStatus } from './components/SecurityGate';
 import { GitPanel } from './components/GitPanel';
 import { ReportPanel } from './components/ReportPanel';
 import { ScanProgressOverlay } from './components/ScanProgressOverlay';
+import { EmptyState } from './components/EmptyState';
 import { messages, state, type GitAction, type ScanStatusPayload } from './utilities/messages';
 
 type ViewMode = 'dashboard' | 'report';
@@ -163,6 +164,10 @@ function App() {
     messages.openFile({ file: vuln.file, line: vuln.line });
   };
 
+  const handleRunScan = () => {
+    messages.runScan({ scope: 'file' });
+  };
+
   return (
     <div className="min-h-screen bg-[var(--vscode-editor-background)] text-[var(--vscode-foreground)] font-[var(--vscode-font-family)]">
       {/* Scan Progress Overlay */}
@@ -274,14 +279,16 @@ function App() {
             {scanResult ? (
               <ScanResults results={scanResult} />
             ) : (
-              <div
-                className="flex flex-col items-center justify-center p-8 text-center text-[var(--vscode-descriptionForeground)] border-2 border-dashed border-[var(--vscode-panel-border)] rounded-lg"
-                role="status"
-                aria-live="polite"
-              >
-                <p className="mb-2 font-semibold">No scan results yet.</p>
-                <p className="text-sm">Open a C/C++ file and run a scan to see vulnerabilities.</p>
-              </div>
+              <EmptyState
+                icon="codicon-shield"
+                title="No Scan Results"
+                description="Open a C/C++ file and run a scan to detect potential vulnerabilities in your code."
+                primaryAction={{
+                  label: 'Run Scan',
+                  onClick: handleRunScan,
+                  icon: 'codicon-play'
+                }}
+              />
             )}
           </>
         ) : (
@@ -292,13 +299,20 @@ function App() {
               onVulnerabilityClick={handleVulnerabilityClick}
             />
           ) : (
-            <div
-              className="flex flex-col items-center justify-center p-8 text-center text-[var(--vscode-descriptionForeground)] border-2 border-dashed border-[var(--vscode-panel-border)] rounded-lg"
-              role="status"
-            >
-              <p className="mb-2 font-semibold">No report generated yet.</p>
-              <p className="text-sm">Run a scan first to generate a security report.</p>
-            </div>
+            <EmptyState
+              icon="codicon-file-text"
+              title="No Report Generated"
+              description="Run a vulnerability scan first to generate a detailed security report."
+              primaryAction={{
+                label: 'Run Scan',
+                onClick: handleRunScan,
+                icon: 'codicon-play'
+              }}
+              secondaryAction={{
+                label: 'Go to Dashboard',
+                onClick: () => handleViewModeChange('dashboard')
+              }}
+            />
           )
         )}
       </main>
