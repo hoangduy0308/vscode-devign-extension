@@ -5,13 +5,15 @@ import { Dashboard } from './components/Dashboard';
 import { SecurityGate, type GateStatus } from './components/SecurityGate';
 import { GitPanel } from './components/GitPanel';
 import { ReportPanel } from './components/ReportPanel';
-import { messages, state, type GitAction } from './utilities/messages';
+import { ScanProgressOverlay } from './components/ScanProgressOverlay';
+import { messages, state, type GitAction, type ScanStatusPayload } from './utilities/messages';
 
 type ViewMode = 'dashboard' | 'report';
 
 function App() {
   const [scanResult, setScanResult] = useState<ScanResultPayload | null>(null);
   const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [scanStatus, setScanStatus] = useState<ScanStatusPayload>({ status: 'idle' });
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const savedState = state.get();
     return savedState?.viewMode || 'dashboard';
@@ -82,6 +84,13 @@ function App() {
           }
           break;
         case MessageType.SCAN_STATUS:
+          setScanStatus(message.payload as ScanStatusPayload);
+          // Auto-dismiss overlay when scan completes successfully
+          if (message.payload?.status === 'completed') {
+            setTimeout(() => {
+              setScanStatus({ status: 'idle' });
+            }, 2000);
+          }
           break;
       }
     };
@@ -108,6 +117,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[var(--vscode-editor-background)] text-[var(--vscode-foreground)] font-[var(--vscode-font-family)]">
+      {/* Scan Progress Overlay */}
+      <ScanProgressOverlay 
+        status={scanStatus} 
+        onClose={() => setScanStatus({ status: 'idle' })}
+      />
+      
       <main className="p-4 flex flex-col gap-4 max-w-4xl mx-auto" role="main" aria-label="Devign Scanner Dashboard">
         {/* View Toggle */}
         <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3" role="tablist" aria-label="View mode tabs">
