@@ -3,13 +3,14 @@
 @tailwind utilities;
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--vscode-font-family, system-ui, Avenir, Helvetica, Arial, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  font-weight: var(--vscode-font-weight, 400);
   line-height: 1.5;
-  font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: var(--vscode-foreground, rgba(255, 255, 255, 0.87));
+  background-color: var(--vscode-editor-background, #242424);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -19,8 +20,34 @@
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  padding: 0;
+  min-width: 100%;
   min-height: 100vh;
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+}
+
+/* VS Code Theme Variables Integration */
+.vscode-dark {
+  --bg-primary: var(--vscode-editor-background);
+  --bg-secondary: var(--vscode-sideBar-background);
+  --text-primary: var(--vscode-foreground);
+  --text-secondary: var(--vscode-descriptionForeground);
+  --border-color: var(--vscode-panel-border);
+  --focus-border: var(--vscode-focusBorder);
+}
+
+.vscode-light {
+  --bg-primary: var(--vscode-editor-background);
+  --bg-secondary: var(--vscode-sideBar-background);
+  --text-primary: var(--vscode-foreground);
+  --text-secondary: var(--vscode-descriptionForeground);
+  --border-color: var(--vscode-panel-border);
+  --focus-border: var(--vscode-focusBorder);
+}
+
+/* Focus styles for accessibility */
+:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
 }
