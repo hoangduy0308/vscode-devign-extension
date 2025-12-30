@@ -121,10 +121,14 @@ export const ReportPanel: React.FC<ReportPanelProps> = ({
             {/* Controls */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-2">
-                    <label className="text-sm text-[var(--vscode-descriptionForeground)]">
+                    <label 
+                        htmlFor="severity-filter"
+                        className="text-sm text-[var(--vscode-descriptionForeground)]"
+                    >
                         Filter:
                     </label>
                     <select
+                        id="severity-filter"
                         value={filter}
                         onChange={(e) => setFilter(e.target.value as SeverityFilter)}
                         className="bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded px-2 py-1 text-sm"
@@ -136,10 +140,14 @@ export const ReportPanel: React.FC<ReportPanelProps> = ({
                         <option value="LOW">Low Only</option>
                     </select>
 
-                    <label className="text-sm text-[var(--vscode-descriptionForeground)] ml-4">
+                    <label 
+                        htmlFor="sort-by"
+                        className="text-sm text-[var(--vscode-descriptionForeground)] ml-4"
+                    >
                         Sort:
                     </label>
                     <select
+                        id="sort-by"
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as 'severity' | 'file')}
                         className="bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded px-2 py-1 text-sm"
@@ -214,13 +222,21 @@ const VulnerabilityCard: React.FC<VulnerabilityCardProps> = ({ vuln, onClick }) 
     const borderColor = severityBorderColors[vuln.severity] || 'border-l-gray-500';
     const bgColor = severityColors[vuln.severity] || 'bg-gray-500';
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick?.();
+        }
+    };
+
     return (
         <div 
-            className={`bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-4 border-l-4 ${borderColor} cursor-pointer hover:bg-[var(--vscode-list-hoverBackground)]`}
+            className={`bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-4 border-l-4 ${borderColor} cursor-pointer hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]`}
             onClick={onClick}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
+            onKeyDown={handleKeyDown}
+            aria-label={`${vuln.severity} vulnerability: ${vuln.message}`}
         >
             <div className="flex items-center gap-3 mb-2">
                 <span className={`${bgColor} text-white text-xs font-semibold px-2 py-0.5 rounded flex items-center gap-1`}>

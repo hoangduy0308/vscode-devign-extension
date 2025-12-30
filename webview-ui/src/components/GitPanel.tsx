@@ -1,4 +1,5 @@
 import React from 'react';
+import { handleActivation } from '../utils/keyboard';
 
 interface GitPanelProps {
     branch: string;
@@ -180,14 +181,16 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                     {stagedFiles.length === 0 ? (
                         <div className="text-sm text-[var(--vscode-disabledForeground)] italic">No staged files</div>
                     ) : (
-                        <ul className="space-y-1 group" role="list">
+                        <ul className="space-y-1" role="list">
                             {stagedFiles.map((file, idx) => (
-                                <li key={idx} className="flex items-center justify-between text-sm font-mono text-[var(--vscode-gitDecoration-addedResourceForeground)]" role="listitem">
+                                <li key={idx} className="group flex items-center justify-between text-sm font-mono text-[var(--vscode-gitDecoration-addedResourceForeground)] focus-within:bg-[var(--vscode-list-hoverBackground)] rounded px-1" role="listitem">
                                     <span className="truncate flex-1">{file}</span>
                                     <button
                                         onClick={() => onUnstageFile(file)}
-                                        className="ml-2 opacity-0 group-hover:opacity-100 hover:opacity-100 px-1.5 text-[var(--vscode-foreground)] hover:bg-[var(--vscode-list-hoverBackground)] rounded"
+                                        onKeyDown={(e) => handleActivation(e, () => onUnstageFile(file))}
+                                        className="ml-2 reveal-on-interact opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 px-1.5 text-[var(--vscode-foreground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:bg-[var(--vscode-list-hoverBackground)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
                                         title="Unstage file"
+                                        aria-label={`Unstage ${file}`}
                                     >
                                         -
                                     </button>
@@ -204,14 +207,16 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                     {unstagedFiles.length === 0 ? (
                         <div className="text-sm text-[var(--vscode-disabledForeground)] italic">No unstaged files</div>
                     ) : (
-                        <ul className="space-y-1 group" role="list">
+                        <ul className="space-y-1" role="list">
                             {unstagedFiles.map((file, idx) => (
-                                <li key={idx} className="flex items-center justify-between text-sm font-mono text-[var(--vscode-gitDecoration-modifiedResourceForeground)]" role="listitem">
+                                <li key={idx} className="group flex items-center justify-between text-sm font-mono text-[var(--vscode-gitDecoration-modifiedResourceForeground)] focus-within:bg-[var(--vscode-list-hoverBackground)] rounded px-1" role="listitem">
                                     <span className="truncate flex-1">{file}</span>
                                     <button
                                         onClick={() => onStageFile(file)}
-                                        className="ml-2 opacity-0 group-hover:opacity-100 hover:opacity-100 px-1.5 text-[var(--vscode-foreground)] hover:bg-[var(--vscode-list-hoverBackground)] rounded"
+                                        onKeyDown={(e) => handleActivation(e, () => onStageFile(file))}
+                                        className="ml-2 reveal-on-interact opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 px-1.5 text-[var(--vscode-foreground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:bg-[var(--vscode-list-hoverBackground)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
                                         title="Stage file"
+                                        aria-label={`Stage ${file}`}
                                     >
                                         +
                                     </button>
