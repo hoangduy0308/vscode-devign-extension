@@ -41,7 +41,40 @@ export interface ScanResultPayload {
 export const MessageType = {
     SCAN_RESULT: 'SCAN_RESULT',
     SCAN_STATUS: 'SCAN_STATUS',
-    OPEN_FILE: 'OPEN_FILE'
+    OPEN_FILE: 'OPEN_FILE',
+    REPORT_DATA: 'REPORT_DATA',
+    EXPORT_REPORT: 'EXPORT_REPORT'
 } as const;
 
 export type MessageType = typeof MessageType[keyof typeof MessageType];
+
+export interface ReportVulnerability {
+    id: string;
+    ruleId: string;
+    severity: Severity;
+    message: string;
+    file: string;
+    line: number;
+    endLine?: number;
+    snippet?: string;
+    probability?: number;
+    functionName?: string;
+}
+
+export interface ReportSummary {
+    totalVulnerabilities: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    filesAffected: number;
+    scanTime: string;
+    toolName: string;
+    toolVersion: string;
+}
+
+export interface ReportData {
+    summary: ReportSummary;
+    vulnerabilities: ReportVulnerability[];
+    generatedAt: string;
+}

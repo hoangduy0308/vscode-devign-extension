@@ -10,12 +10,14 @@ export enum MessageType {
     SCAN_STATUS = 'SCAN_STATUS',
     GIT_STATUS = 'GIT_STATUS',
     CONFIGURATION = 'CONFIGURATION',
+    REPORT_DATA = 'REPORT_DATA',
 
     // Webview -> VSCode
     START_SCAN = 'START_SCAN',
     STOP_SCAN = 'STOP_SCAN',
     OPEN_FILE = 'OPEN_FILE',
-    UPDATE_CONFIG = 'UPDATE_CONFIG'
+    UPDATE_CONFIG = 'UPDATE_CONFIG',
+    EXPORT_REPORT = 'EXPORT_REPORT'
 }
 
 export enum ScanStatus {

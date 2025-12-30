@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { getUri } from '../utilities/getUri';
 import { getNonce } from '../utilities/getNonce';
 import { MessageType, ScanStatus, PROTOCOL_VERSION, Severity, type ScanResultPayload, type ScanStatusPayload } from '../types/messages';
+import { getSarifExportService, type SarifLog } from '../services/sarifExportService';
+import { getHtmlReportService, type HtmlReportData } from '../services/htmlReportService';
 
 export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'devign.webview';
@@ -9,6 +11,7 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     private _disposables: vscode.Disposable[] = [];
     private _debouncedScanTimers: Map<string, NodeJS.Timeout> = new Map();
     private static readonly TYPING_DEBOUNCE_MS = 500;
+    private _currentSarifLog?: SarifLog;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -49,6 +52,10 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
                 }
                 case MessageType.OPEN_FILE: {
                     await this._handleOpenFile(data.payload);
+                    break;
+                }
+                case MessageType.EXPORT_REPORT: {
+                    await this._handleExportReport();
                     break;
                 }
                 case 'hello': {
@@ -153,6 +160,33 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
             type: MessageType.SCAN_STATUS,
             version: PROTOCOL_VERSION,
             payload: status
+        });
+    }
+
+    public postReportData(data: HtmlReportData) {
+        this._view?.webview.postMessage({
+            type: MessageType.REPORT_DATA,
+            version: PROTOCOL_VERSION,
+            payload: data
+        });
+    }
+
+    public setSarifLog(sarifLog: SarifLog) {
+        this._currentSarifLog = sarifLog;
+        const htmlReportService = getHtmlReportService();
+        const reportData = htmlReportService.sarifToReportData(sarifLog);
+        this.postReportData(reportData);
+    }
+
+    private async _handleExportReport() {
+        if (!this._currentSarifLog) {
+            vscode.window.showWarningMessage('No scan results to export. Run a scan first.');
+            return;
+        }
+
+        const htmlReportService = getHtmlReportService();
+        await htmlReportService.exportWithDialog(this._currentSarifLog, {
+            title: 'Devign Security Report'
         });
     }
 
