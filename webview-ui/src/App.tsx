@@ -23,7 +23,7 @@ function App() {
   // Mock data for new components (will be replaced by real data later)
   const [gateStatus] = useState<GateStatus>('PENDING');
   const [gateProgress] = useState(0);
-  const [gitStatus, setGitStatus] = useState({
+  const [gitStatus] = useState({
     branch: 'feature/slice-2',
     branches: ['main', 'develop', 'feature/slice-2'],
     staged: ['src/components/Dashboard.tsx', 'src/components/SecurityGate.tsx'],
@@ -85,8 +85,8 @@ function App() {
           <button
             onClick={() => setViewMode('dashboard')}
             className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'dashboard'
-                ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
-                : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
+              ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
+              : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
               }`}
           >
             Dashboard
@@ -94,8 +94,8 @@ function App() {
           <button
             onClick={() => setViewMode('report')}
             className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'report'
-                ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
-                : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
+              ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
+              : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
               }`}
           >
             Report
@@ -132,6 +132,8 @@ function App() {
                   onDeleteBranch={(name) => handleGitAction('deleteBranch', name)}
                   onStageFile={(file) => handleGitAction('stage', file)}
                   onUnstageFile={(file) => handleGitAction('unstage', file)}
+                  onPush={(remote) => handleGitAction('push', { remote })}
+                  onPull={(remote) => handleGitAction('pull', { remote })}
                 />
               </div>
             </div>

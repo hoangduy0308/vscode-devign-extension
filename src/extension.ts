@@ -12,6 +12,8 @@ import { disposeHybridScanService } from './services/hybridScanService';
 import { getGitHubAuthService } from './services/githubAuthService';
 import { getPRService } from './services/prService';
 import { GitService } from './services/gitService';
+import { getGitHubSarifUploadService } from './services/githubSarifUploadService';
+import { getSarifExportService, SarifLog } from './services/sarifExportService';
 
 let scanner: DevignScanner;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -137,7 +139,9 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('devign.github.signOut', () => signOutFromGitHub()),
         vscode.commands.registerCommand('devign.github.status', () => showGitHubStatus()),
         // PR commands
-        vscode.commands.registerCommand('devign.createPR', () => createPullRequest())
+        vscode.commands.registerCommand('devign.createPR', () => createPullRequest()),
+        // SARIF upload command
+        vscode.commands.registerCommand('devign.uploadSarif', () => uploadSarifToGitHub())
     );
 
     const config = vscode.workspace.getConfiguration('devign');
@@ -1105,6 +1109,59 @@ async function createPullRequest() {
     }
     
     await prService.showCreatePRDialog(sarifLog);
+}
+
+async function uploadSarifToGitHub() {
+    const gitService = new GitService();
+    
+    // Check if we're in a git repo
+    const isAvailable = await gitService.isAvailable();
+    if (!isAvailable) {
+        vscode.window.showErrorMessage('No Git repository found');
+        return;
+    }
+    
+    // Get the SARIF upload service
+    const uploadService = getGitHubSarifUploadService(gitService);
+    
+    // Check if Code Scanning is available
+    const isCodeScanningAvailable = await uploadService.isCodeScanningAvailable();
+    if (!isCodeScanningAvailable) {
+        const choice = await vscode.window.showWarningMessage(
+            'GitHub Code Scanning may not be enabled for this repository.',
+            'Continue Anyway',
+            'Cancel'
+        );
+        if (choice !== 'Continue Anyway') {
+            return;
+        }
+    }
+    
+    // We need SARIF data to upload - prompt user to run a scan first if none available
+    // For now, show a message that they need to run a scan first
+    const runScan = await vscode.window.showInformationMessage(
+        'Run a security scan to generate SARIF results for upload?',
+        'Run Scan',
+        'Cancel'
+    );
+    
+    if (runScan !== 'Run Scan') {
+        return;
+    }
+    
+    // Run workspace scan and get results
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Running security scan...',
+        cancellable: false
+    }, async () => {
+        await vscode.commands.executeCommand('devign.scanWorkspace');
+    });
+    
+    vscode.window.showInformationMessage(
+        'Scan complete. Use "Export SARIF" to save results, then upload manually.',
+        'OK'
+    );
 }
 
 export function deactivate() {

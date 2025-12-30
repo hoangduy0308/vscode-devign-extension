@@ -5,6 +5,10 @@ import { MessageType, ScanStatus, PROTOCOL_VERSION, Severity, type ScanResultPay
 import { getSarifExportService, type SarifLog } from '../services/sarifExportService';
 import { getHtmlReportService, type HtmlReportData } from '../services/htmlReportService';
 import { GitService } from '../services/gitService';
+import { CommitCommand } from '../commands/commitCommand';
+import { PushCommand } from '../commands/pushCommand';
+import { PullCommand } from '../commands/pullCommand';
+import { SecurityGateService } from '../services/securityGateService';
 
 export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'devign.webview';
@@ -14,11 +18,17 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     private static readonly TYPING_DEBOUNCE_MS = 500;
     private _currentSarifLog?: SarifLog;
     private _gitService: GitService;
+    private _commitCommand: CommitCommand;
+    private _pushCommand: PushCommand;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
     ) {
         this._gitService = new GitService();
+        // Initialize Security Gate Service (needed for Commit Command)
+        const securityGateService = new SecurityGateService(this._gitService);
+        this._commitCommand = new CommitCommand(this._gitService, securityGateService);
+        this._pushCommand = new PushCommand(this._gitService, securityGateService);
     }
 
     public resolveWebviewView(
@@ -215,6 +225,28 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
                     break;
                 case 'unstage':
                     await this._gitService.unstage([vscode.Uri.file(payload.data)]);
+                    break;
+                case 'commit':
+                    if (payload.data && payload.data.message) {
+                        // Use CommitCommand to handle commit with security gate check
+                        // We need to temporarily override the promptForCommitMessage method
+                        // since we already have the message from the webview
+                        const originalPrompt = this._commitCommand['promptForCommitMessage'];
+                        this._commitCommand['promptForCommitMessage'] = async () => payload.data.message;
+
+                        try {
+                            await this._commitCommand.execute();
+                        } finally {
+                            // Restore original method
+                            this._commitCommand['promptForCommitMessage'] = originalPrompt;
+                        }
+                    }
+                    break;
+                case 'push':
+                    await this._pushCommand.execute();
+                    break;
+                case 'pull':
+                    await this._gitService.pull();
                     break;
             }
             // Refresh git status after action

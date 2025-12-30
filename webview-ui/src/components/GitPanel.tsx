@@ -5,11 +5,16 @@ interface GitPanelProps {
     branches: string[];
     stagedFiles: string[];
     unstagedFiles: string[];
+    remotes?: string[];
+    isPushing?: boolean;
+    isPulling?: boolean;
     onBranchChange: (branch: string) => void;
     onCreateBranch: (name: string) => void;
     onDeleteBranch: (name: string) => void;
     onStageFile: (file: string) => void;
     onUnstageFile: (file: string) => void;
+    onPush?: (remote?: string) => void;
+    onPull?: (remote?: string) => void;
 }
 
 export const GitPanel: React.FC<GitPanelProps> = ({
@@ -17,20 +22,43 @@ export const GitPanel: React.FC<GitPanelProps> = ({
     branches,
     stagedFiles,
     unstagedFiles,
+    remotes = ['origin'],
+    isPushing = false,
+    isPulling = false,
     onBranchChange,
     onCreateBranch,
+    // @ts-ignore
     onDeleteBranch,
     onStageFile,
-    onUnstageFile
+    onUnstageFile,
+    onPush,
+    onPull
 }) => {
     const [isCreatingBranch, setIsCreatingBranch] = React.useState(false);
     const [newBranchName, setNewBranchName] = React.useState('');
+    const [commitMessage, setCommitMessage] = React.useState('');
+    const [selectedRemote, setSelectedRemote] = React.useState(remotes[0] || 'origin');
 
     const handleCreateBranch = () => {
         if (newBranchName) {
             onCreateBranch(newBranchName);
             setIsCreatingBranch(false);
             setNewBranchName('');
+        }
+    };
+
+    const handleCommit = () => {
+        if (commitMessage) {
+            // Send commit message to extension
+            // @ts-ignore
+            window.vscode.postMessage({
+                type: 'GIT_ACTION',
+                payload: {
+                    action: 'commit',
+                    data: { message: commitMessage }
+                }
+            });
+            setCommitMessage('');
         }
     };
 
@@ -80,6 +108,71 @@ export const GitPanel: React.FC<GitPanelProps> = ({
             </div>
 
             <div className="flex flex-col gap-4">
+                {/* Commit Section */}
+                <div className="flex flex-col gap-2">
+                    <textarea
+                        value={commitMessage}
+                        onChange={(e) => setCommitMessage(e.target.value)}
+                        placeholder="Commit message..."
+                        className="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded resize-none h-20 focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+                    />
+                    <button
+                        onClick={handleCommit}
+                        disabled={!commitMessage || stagedFiles.length === 0}
+                        className="w-full px-3 py-1.5 text-sm font-medium bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded hover:bg-[var(--vscode-button-hoverBackground)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Commit
+                    </button>
+                </div>
+
+                {/* Push/Pull Section */}
+                <div className="flex flex-col gap-2">
+                    {remotes.length > 1 && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-[var(--vscode-descriptionForeground)]">Remote:</span>
+                            <select
+                                value={selectedRemote}
+                                onChange={(e) => setSelectedRemote(e.target.value)}
+                                className="flex-1 px-2 py-1 text-xs bg-[var(--vscode-dropdown-background)] text-[var(--vscode-dropdown-foreground)] border border-[var(--vscode-dropdown-border)] rounded"
+                            >
+                                {remotes.map(r => (
+                                    <option key={r} value={r}>{r}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => onPull?.(selectedRemote)}
+                            disabled={isPulling || isPushing}
+                            className="flex-1 px-3 py-1.5 text-sm font-medium bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                        >
+                            {isPulling ? (
+                                <>
+                                    <span className="animate-spin">↻</span>
+                                    Pulling...
+                                </>
+                            ) : (
+                                '↓ Pull'
+                            )}
+                        </button>
+                        <button
+                            onClick={() => onPush?.(selectedRemote)}
+                            disabled={isPushing || isPulling}
+                            className="flex-1 px-3 py-1.5 text-sm font-medium bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                        >
+                            {isPushing ? (
+                                <>
+                                    <span className="animate-spin">↻</span>
+                                    Pushing...
+                                </>
+                            ) : (
+                                '↑ Push'
+                            )}
+                        </button>
+                    </div>
+                </div>
+
                 <div role="region" aria-label="Staged Changes">
                     <h3 className="text-xs font-semibold text-[var(--vscode-descriptionForeground)] uppercase mb-2">
                         Staged Changes ({stagedFiles.length})

@@ -112,7 +112,7 @@ export const OpenFileMessageSchema = BaseMessageSchema.extend({
 export const GitActionMessageSchema = BaseMessageSchema.extend({
     type: z.literal(MessageType.GIT_ACTION),
     payload: z.object({
-        action: z.enum(['createBranch', 'checkout', 'deleteBranch', 'stage', 'unstage']),
+        action: z.enum(['createBranch', 'checkout', 'deleteBranch', 'stage', 'unstage', 'commit', 'push', 'pull']),
         data: z.any()
     })
 });
