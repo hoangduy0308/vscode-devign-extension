@@ -345,7 +345,18 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+          <meta http-equiv="Content-Security-Policy" content="
+            default-src 'none';
+            style-src ${webview.cspSource};
+            font-src ${webview.cspSource};
+            img-src ${webview.cspSource} data:;
+            script-src 'nonce-${nonce}';
+            connect-src 'none';
+            frame-src 'none';
+            object-src 'none';
+            base-uri 'none';
+            form-action 'none';
+          ">
           <link rel="stylesheet" type="text/css" href="${stylesUri}">
           <link rel="stylesheet" type="text/css" href="${codiconsUri}">
           <title>Devign</title>
