@@ -44,7 +44,11 @@ export const MessageType = {
     OPEN_FILE: 'OPEN_FILE',
     REPORT_DATA: 'REPORT_DATA',
     EXPORT_REPORT: 'EXPORT_REPORT',
-    GIT_ACTION: 'GIT_ACTION'
+    GIT_ACTION: 'GIT_ACTION',
+    RUN_SCAN: 'RUN_SCAN',
+    CANCEL_SCAN: 'CANCEL_SCAN',
+    GATE_STATUS: 'GATE_STATUS',
+    GIT_STATUS: 'GIT_STATUS'
 } as const;
 
 export type MessageType = typeof MessageType[keyof typeof MessageType];

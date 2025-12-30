@@ -14,6 +14,7 @@ import { getPRService } from './services/prService';
 import { GitService } from './services/gitService';
 import { getGitHubSarifUploadService } from './services/githubSarifUploadService';
 import { getSarifExportService, SarifLog } from './services/sarifExportService';
+import { registerGatePanel } from './ui/gatePanel';
 
 let scanner: DevignScanner;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -111,6 +112,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(DevignWebviewProvider.viewType, provider)
     );
+
+    // Register Gate Panel TreeView
+    registerGatePanel(context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('devign.scanCurrentFile', () => scanCurrentFile()),

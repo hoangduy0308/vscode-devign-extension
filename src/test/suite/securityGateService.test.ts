@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
+import { mockVscode } from './vscode-test-utils';
 import { SecurityGateService, GateRunOptions } from '../../services/securityGateService';
 import { GitService, FileChange } from '../../services/gitService';
 import { DevignScanner, ScanResult } from '../../scanner';
@@ -33,17 +34,23 @@ suite('SecurityGateService Test Suite', () => {
         const gateStatusModule = require('../../services/gateStatusService');
         sandbox.stub(gateStatusModule, 'getGateStatusService').returns(gateStatusServiceStub);
 
-        // Mock vscode.languages.createDiagnosticCollection
-        const diagnosticCollectionStub = {
-            clear: sandbox.stub(),
-            set: sandbox.stub(),
-            delete: sandbox.stub(),
-            dispose: sandbox.stub(),
-            forEach: sandbox.stub(),
-            get: sandbox.stub(),
-            has: sandbox.stub()
-        };
-        sandbox.stub(vscode.languages, 'createDiagnosticCollection').returns(diagnosticCollectionStub as any);
+        mockVscode(sandbox);
+
+        // Manually inject diagnostic collection if stubbing failed
+        if (!vscode.languages || !vscode.languages.createDiagnosticCollection) {
+            const diagnosticCollectionStub = {
+                clear: sandbox.stub(),
+                set: sandbox.stub(),
+                delete: sandbox.stub(),
+                dispose: sandbox.stub(),
+                forEach: sandbox.stub(),
+                get: sandbox.stub(),
+                has: sandbox.stub()
+            };
+            (vscode as any).languages = {
+                createDiagnosticCollection: () => diagnosticCollectionStub
+            };
+        }
 
         service = new SecurityGateService(gitServiceStub as any, scannerStub as any);
     });

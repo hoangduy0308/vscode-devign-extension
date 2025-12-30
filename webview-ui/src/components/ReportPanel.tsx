@@ -53,6 +53,13 @@ const severityBorderColors: Record<string, string> = {
     LOW: 'border-l-green-500'
 };
 
+const severityIcons: Record<string, string> = {
+    CRITICAL: 'codicon-error',
+    HIGH: 'codicon-warning',
+    MEDIUM: 'codicon-info',
+    LOW: 'codicon-check'
+};
+
 export const ReportPanel: React.FC<ReportPanelProps> = ({
     data,
     onExport,
@@ -147,7 +154,7 @@ export const ReportPanel: React.FC<ReportPanelProps> = ({
                         onClick={onExport}
                         className="flex items-center gap-2 px-3 py-1.5 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded hover:bg-[var(--vscode-button-hoverBackground)] text-sm font-medium"
                     >
-                        <span>📄</span>
+                        <span className="codicon codicon-export"></span>
                         Export Report
                     </button>
                 )}
@@ -165,6 +172,7 @@ export const ReportPanel: React.FC<ReportPanelProps> = ({
                     ))
                 ) : (
                     <div className="text-center py-8 text-[var(--vscode-descriptionForeground)]">
+                        <span className="codicon codicon-shield text-4xl mb-2 block opacity-50"></span>
                         {filter === 'ALL' 
                             ? 'No vulnerabilities found. Your code looks secure!'
                             : `No ${filter.toLowerCase()} severity vulnerabilities found.`}
@@ -215,7 +223,8 @@ const VulnerabilityCard: React.FC<VulnerabilityCardProps> = ({ vuln, onClick }) 
             onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
         >
             <div className="flex items-center gap-3 mb-2">
-                <span className={`${bgColor} text-white text-xs font-semibold px-2 py-0.5 rounded`}>
+                <span className={`${bgColor} text-white text-xs font-semibold px-2 py-0.5 rounded flex items-center gap-1`}>
+                    <span className={`codicon ${severityIcons[vuln.severity]}`}></span>
                     {vuln.severity}
                 </span>
                 <span className="text-xs text-[var(--vscode-descriptionForeground)]">

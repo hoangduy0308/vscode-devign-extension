@@ -1,24 +1,21 @@
 import { useState, useEffect } from 'react';
-import './App.css';
 import { type ScanResultPayload, type ReportData, MessageType } from './types';
 import { ScanResults } from './components/ScanResults';
 import { Dashboard } from './components/Dashboard';
 import { SecurityGate, type GateStatus } from './components/SecurityGate';
 import { GitPanel } from './components/GitPanel';
 import { ReportPanel } from './components/ReportPanel';
-
-declare function acquireVsCodeApi(): {
-  postMessage: (message: unknown) => void;
-};
-
-const vscode = typeof acquireVsCodeApi !== 'undefined' ? acquireVsCodeApi() : null;
+import { messages, state, type GitAction } from './utilities/messages';
 
 type ViewMode = 'dashboard' | 'report';
 
 function App() {
   const [scanResult, setScanResult] = useState<ScanResultPayload | null>(null);
   const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const savedState = state.get();
+    return savedState?.viewMode || 'dashboard';
+  });
 
   // Mock data for new components (will be replaced by real data later)
   const [gateStatus] = useState<GateStatus>('PENDING');
@@ -30,13 +27,36 @@ function App() {
     unstaged: ['src/App.tsx']
   });
 
-  const handleGitAction = (action: string, data: any) => {
-    if (vscode) {
-      vscode.postMessage({
-        type: MessageType.GIT_ACTION,
-        payload: { action, data }
-      });
+  const handleGitAction = (action: string, data: string | { remote?: string }) => {
+    let gitAction: GitAction;
+    
+    switch (action) {
+      case 'checkout':
+        gitAction = { action: 'checkout', branch: data as string };
+        break;
+      case 'createBranch':
+        gitAction = { action: 'createBranch', name: data as string };
+        break;
+      case 'deleteBranch':
+        gitAction = { action: 'deleteBranch', name: data as string };
+        break;
+      case 'stage':
+        gitAction = { action: 'stage', file: data as string };
+        break;
+      case 'unstage':
+        gitAction = { action: 'unstage', file: data as string };
+        break;
+      case 'push':
+        gitAction = { action: 'push', remote: (data as { remote?: string })?.remote };
+        break;
+      case 'pull':
+        gitAction = { action: 'pull', remote: (data as { remote?: string })?.remote };
+        break;
+      default:
+        return;
     }
+    
+    messages.git(gitAction);
   };
 
   useEffect(() => {
@@ -49,6 +69,7 @@ function App() {
         case MessageType.REPORT_DATA:
           setReportData(message.payload);
           setViewMode('report');
+          state.update({ viewMode: 'report' });
           break;
         case MessageType.SCAN_STATUS:
           break;
@@ -62,19 +83,17 @@ function App() {
     };
   }, []);
 
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    state.update({ viewMode: mode });
+  };
+
   const handleExportReport = () => {
-    if (vscode) {
-      vscode.postMessage({ type: MessageType.EXPORT_REPORT });
-    }
+    messages.exportReport();
   };
 
   const handleVulnerabilityClick = (vuln: { file: string; line: number }) => {
-    if (vscode) {
-      vscode.postMessage({
-        type: MessageType.OPEN_FILE,
-        payload: { file: vuln.file, line: vuln.line }
-      });
-    }
+    messages.openFile({ file: vuln.file, line: vuln.line });
   };
 
   return (
@@ -83,7 +102,7 @@ function App() {
         {/* View Toggle */}
         <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3">
           <button
-            onClick={() => setViewMode('dashboard')}
+            onClick={() => handleViewModeChange('dashboard')}
             className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'dashboard'
               ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
               : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
@@ -92,7 +111,7 @@ function App() {
             Dashboard
           </button>
           <button
-            onClick={() => setViewMode('report')}
+            onClick={() => handleViewModeChange('report')}
             className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'report'
               ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
               : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'

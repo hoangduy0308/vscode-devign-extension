@@ -1,3 +1,6 @@
+# Skills
+Use front-end design skill if task is related to UI/UX design.
+
 # Agent Instructions
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.

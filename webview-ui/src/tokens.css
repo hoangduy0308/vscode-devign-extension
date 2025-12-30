@@ -1,0 +1,237 @@
+/**
+ * Design Token System for Devign Vulnerability Scanner
+ * 
+ * All tokens are defined on `body` (not :root) to properly inherit 
+ * VS Code's theme class (.vscode-dark / .vscode-light).
+ * 
+ * Usage: var(--token-name)
+ */
+
+/* ============================================
+   SPACING TOKENS
+   ============================================ */
+body {
+  /* Base spacing scale (4px grid) */
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+
+  /* Semantic spacing */
+  --space-inline-xs: var(--space-1);
+  --space-inline-sm: var(--space-2);
+  --space-inline-md: var(--space-3);
+  --space-inline-lg: var(--space-4);
+  
+  --space-stack-xs: var(--space-1);
+  --space-stack-sm: var(--space-2);
+  --space-stack-md: var(--space-4);
+  --space-stack-lg: var(--space-6);
+  
+  /* Component-specific spacing */
+  --space-card-padding: var(--space-4);
+  --space-card-gap: var(--space-3);
+  --space-section-gap: var(--space-6);
+  --space-list-gap: var(--space-2);
+}
+
+/* ============================================
+   TYPOGRAPHY TOKENS
+   ============================================ */
+body {
+  /* Font families - inherit from VS Code */
+  --font-family-base: var(--vscode-font-family, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  --font-family-mono: var(--vscode-editor-font-family, 'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace);
+
+  /* Font sizes */
+  --font-size-xs: 0.6875rem;   /* 11px */
+  --font-size-sm: 0.75rem;     /* 12px */
+  --font-size-base: 0.8125rem; /* 13px - VS Code default */
+  --font-size-md: 0.875rem;    /* 14px */
+  --font-size-lg: 1rem;        /* 16px */
+  --font-size-xl: 1.125rem;    /* 18px */
+  --font-size-2xl: 1.25rem;    /* 20px */
+  --font-size-3xl: 1.5rem;     /* 24px */
+
+  /* Font weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights */
+  --line-height-tight: 1.25;
+  --line-height-base: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* Letter spacing */
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+  --letter-spacing-wider: 0.05em;
+}
+
+/* ============================================
+   COLOR TOKENS (VS Code Theme Integration)
+   ============================================ */
+body {
+  /* Background colors */
+  --color-bg-primary: var(--vscode-editor-background);
+  --color-bg-secondary: var(--vscode-sideBar-background);
+  --color-bg-tertiary: var(--vscode-editorWidget-background);
+  --color-bg-elevated: var(--vscode-dropdown-background);
+  --color-bg-hover: var(--vscode-list-hoverBackground);
+  --color-bg-active: var(--vscode-list-activeSelectionBackground);
+
+  /* Text colors */
+  --color-text-primary: var(--vscode-foreground);
+  --color-text-secondary: var(--vscode-descriptionForeground);
+  --color-text-muted: var(--vscode-disabledForeground);
+  --color-text-link: var(--vscode-textLink-foreground);
+  --color-text-link-hover: var(--vscode-textLink-activeForeground);
+
+  /* Border colors */
+  --color-border-default: var(--vscode-panel-border);
+  --color-border-subtle: var(--vscode-widget-border, var(--vscode-panel-border));
+  --color-border-focus: var(--vscode-focusBorder);
+
+  /* Interactive colors */
+  --color-interactive-primary: var(--vscode-button-background);
+  --color-interactive-primary-hover: var(--vscode-button-hoverBackground);
+  --color-interactive-secondary: var(--vscode-button-secondaryBackground);
+  --color-interactive-secondary-hover: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* ============================================
+   SEVERITY TOKENS
+   ============================================ */
+body {
+  /* Critical - Highest severity (red) */
+  --severity-critical-bg: rgba(239, 68, 68, 0.15);
+  --severity-critical-bg-hover: rgba(239, 68, 68, 0.25);
+  --severity-critical-border: rgba(239, 68, 68, 0.5);
+  --severity-critical-text: #ef4444;
+  --severity-critical-icon: #f87171;
+
+  /* High - High severity (orange) */
+  --severity-high-bg: rgba(249, 115, 22, 0.15);
+  --severity-high-bg-hover: rgba(249, 115, 22, 0.25);
+  --severity-high-border: rgba(249, 115, 22, 0.5);
+  --severity-high-text: #f97316;
+  --severity-high-icon: #fb923c;
+
+  /* Medium - Medium severity (yellow/amber) */
+  --severity-medium-bg: rgba(245, 158, 11, 0.15);
+  --severity-medium-bg-hover: rgba(245, 158, 11, 0.25);
+  --severity-medium-border: rgba(245, 158, 11, 0.5);
+  --severity-medium-text: #f59e0b;
+  --severity-medium-icon: #fbbf24;
+
+  /* Low - Low severity (blue) */
+  --severity-low-bg: rgba(59, 130, 246, 0.15);
+  --severity-low-bg-hover: rgba(59, 130, 246, 0.25);
+  --severity-low-border: rgba(59, 130, 246, 0.5);
+  --severity-low-text: #3b82f6;
+  --severity-low-icon: #60a5fa;
+
+  /* Info - Informational (gray/neutral) */
+  --severity-info-bg: rgba(156, 163, 175, 0.15);
+  --severity-info-bg-hover: rgba(156, 163, 175, 0.25);
+  --severity-info-border: rgba(156, 163, 175, 0.5);
+  --severity-info-text: #9ca3af;
+  --severity-info-icon: #d1d5db;
+
+  /* Success - Positive/fixed state (green) */
+  --severity-success-bg: rgba(34, 197, 94, 0.15);
+  --severity-success-bg-hover: rgba(34, 197, 94, 0.25);
+  --severity-success-border: rgba(34, 197, 94, 0.5);
+  --severity-success-text: #22c55e;
+  --severity-success-icon: #4ade80;
+}
+
+/* ============================================
+   MOTION TOKENS
+   ============================================ */
+body {
+  /* Duration scale */
+  --duration-instant: 50ms;
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
+
+  /* Easing curves */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Common transitions */
+  --transition-colors: color var(--duration-fast) var(--ease-out),
+                       background-color var(--duration-fast) var(--ease-out),
+                       border-color var(--duration-fast) var(--ease-out);
+  --transition-opacity: opacity var(--duration-normal) var(--ease-out);
+  --transition-transform: transform var(--duration-normal) var(--ease-out);
+  --transition-all: all var(--duration-normal) var(--ease-out);
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  body {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+    --duration-slower: 0ms;
+  }
+}
+
+/* ============================================
+   DIMENSION TOKENS
+   ============================================ */
+body {
+  /* Border radius */
+  --radius-none: 0;
+  --radius-sm: 0.125rem;  /* 2px */
+  --radius-md: 0.25rem;   /* 4px */
+  --radius-lg: 0.375rem;  /* 6px */
+  --radius-xl: 0.5rem;    /* 8px */
+  --radius-2xl: 0.75rem;  /* 12px */
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-tooltip: 600;
+}
+
+/* ============================================
+   ICON TOKENS
+   ============================================ */
+body {
+  /* Icon sizes */
+  --icon-size-xs: 0.75rem;   /* 12px */
+  --icon-size-sm: 1rem;      /* 16px */
+  --icon-size-md: 1.25rem;   /* 20px */
+  --icon-size-lg: 1.5rem;    /* 24px */
+  --icon-size-xl: 2rem;      /* 32px */
+}

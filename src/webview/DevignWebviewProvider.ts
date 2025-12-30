@@ -283,6 +283,8 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
         const stylesUri = getUri(webview, this._extensionUri, ["webview-ui", "dist", "assets", "index.css"]);
         // The JS file from the React build output
         const scriptUri = getUri(webview, this._extensionUri, ["webview-ui", "dist", "assets", "index.js"]);
+        // VS Code Codicons CSS
+        const codiconsUri = getUri(webview, this._extensionUri, ["node_modules", "@vscode/codicons", "dist", "codicon.css"]);
 
         const nonce = getNonce();
 
@@ -292,8 +294,9 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+          <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
           <link rel="stylesheet" type="text/css" href="${stylesUri}">
+          <link rel="stylesheet" type="text/css" href="${codiconsUri}">
           <title>Devign</title>
         </head>
         <body>

@@ -48,8 +48,12 @@ export const ScanResults: React.FC<ScanResultsProps> = ({ results }) => {
         <div className="p-4 flex flex-col gap-4">
             {/* Header / Summary */}
             <div className="flex flex-wrap gap-2 items-center justify-between">
-                <h2 className="text-xl font-bold text-[var(--vscode-foreground)]">Scan Results</h2>
-                <div className="text-sm text-[var(--vscode-descriptionForeground)]">
+                <h2 className="text-xl font-bold text-[var(--vscode-foreground)] flex items-center gap-2">
+                    <i className="codicon codicon-shield" aria-hidden="true"></i>
+                    Scan Results
+                </h2>
+                <div className="text-sm text-[var(--vscode-descriptionForeground)] flex items-center gap-1">
+                    <i className="codicon codicon-file-code" aria-hidden="true"></i>
                     {results.filesScanned} files scanned
                 </div>
             </div>
@@ -78,7 +82,8 @@ export const ScanResults: React.FC<ScanResultsProps> = ({ results }) => {
             {/* List */}
             <div className="flex flex-col gap-3" role="list">
                 {filteredVulnerabilities.length === 0 ? (
-                    <div className="text-center text-[var(--vscode-descriptionForeground)] py-8" role="status">
+                    <div className="text-center text-[var(--vscode-descriptionForeground)] py-8 flex flex-col items-center gap-2" role="status">
+                        <i className="codicon codicon-check text-2xl text-[var(--vscode-charts-green)]" aria-hidden="true"></i>
                         No vulnerabilities found matching filters.
                     </div>
                 ) : (
