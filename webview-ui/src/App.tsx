@@ -59,6 +59,14 @@ function App() {
     messages.git(gitAction);
   };
 
+  // Auto-switch to dashboard if on report view with no data
+  useEffect(() => {
+    if (viewMode === 'report' && !reportData) {
+      setViewMode('dashboard');
+      state.update({ viewMode: 'dashboard' });
+    }
+  }, [viewMode, reportData]);
+
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
@@ -68,8 +76,10 @@ function App() {
           break;
         case MessageType.REPORT_DATA:
           setReportData(message.payload);
-          setViewMode('report');
-          state.update({ viewMode: 'report' });
+          if (message.payload) {
+            setViewMode('report');
+            state.update({ viewMode: 'report' });
+          }
           break;
         case MessageType.SCAN_STATUS:
           break;
@@ -100,24 +110,36 @@ function App() {
     <div className="min-h-screen bg-[var(--vscode-editor-background)] text-[var(--vscode-foreground)] font-[var(--vscode-font-family)]">
       <main className="p-4 flex flex-col gap-4 max-w-4xl mx-auto" role="main" aria-label="Devign Scanner Dashboard">
         {/* View Toggle */}
-        <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3">
+        <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3" role="tablist" aria-label="View mode tabs">
           <button
             onClick={() => handleViewModeChange('dashboard')}
             className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'dashboard'
               ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
               : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
               }`}
+            role="tab"
+            aria-selected={viewMode === 'dashboard'}
+            aria-controls="dashboard-panel"
           >
             Dashboard
           </button>
           <button
-            onClick={() => handleViewModeChange('report')}
-            className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'report'
+            onClick={() => reportData && handleViewModeChange('report')}
+            disabled={!reportData}
+            className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 ${viewMode === 'report'
               ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
-              : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
+              : !reportData
+                ? 'text-[var(--vscode-disabledForeground)] cursor-not-allowed opacity-50'
+                : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
               }`}
+            role="tab"
+            aria-selected={viewMode === 'report'}
+            aria-controls="report-panel"
+            aria-disabled={!reportData}
+            title={!reportData ? 'No report data available. Run a scan first.' : undefined}
           >
             Report
+            {!reportData && <span className="text-xs opacity-70">(empty)</span>}
           </button>
         </div>
 
