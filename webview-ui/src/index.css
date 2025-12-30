@@ -53,3 +53,89 @@ body {
   outline: 2px solid var(--vscode-focusBorder);
   outline-offset: 2px;
 }
+
+/* ============================================
+   SEVERITY UTILITY CLASSES
+   ============================================ */
+
+/* Vulnerability Card with left border accent */
+.vuln-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-card-padding);
+  border-left-width: 4px;
+  transition: var(--transition-colors);
+}
+
+.vuln-card:hover {
+  background: var(--color-bg-hover);
+}
+
+.vuln-card--critical {
+  border-left-color: var(--severity-critical-border);
+}
+
+.vuln-card--high {
+  border-left-color: var(--severity-high-border);
+}
+
+.vuln-card--medium {
+  border-left-color: var(--severity-medium-border);
+}
+
+.vuln-card--low {
+  border-left-color: var(--severity-low-border);
+}
+
+/* Severity Badge */
+.severity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.severity-badge--critical {
+  background: var(--severity-critical-bg);
+  color: var(--severity-critical-text);
+  border: 1px solid var(--severity-critical-border);
+}
+
+.severity-badge--high {
+  background: var(--severity-high-bg);
+  color: var(--severity-high-text);
+  border: 1px solid var(--severity-high-border);
+}
+
+.severity-badge--medium {
+  background: var(--severity-medium-bg);
+  color: var(--severity-medium-text);
+  border: 1px solid var(--severity-medium-border);
+}
+
+.severity-badge--low {
+  background: var(--severity-low-bg);
+  color: var(--severity-low-text);
+  border: 1px solid var(--severity-low-border);
+}
+
+/* Summary Card severity colors */
+.summary-value--critical {
+  color: var(--severity-critical-text);
+}
+
+.summary-value--high {
+  color: var(--severity-high-text);
+}
+
+.summary-value--medium {
+  color: var(--severity-medium-text);
+}
+
+.summary-value--low {
+  color: var(--severity-low-text);
+}

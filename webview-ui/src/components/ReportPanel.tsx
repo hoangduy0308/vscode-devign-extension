@@ -40,25 +40,16 @@ interface ReportPanelProps {
 
 type SeverityFilter = 'ALL' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
-const severityColors: Record<string, string> = {
-    CRITICAL: 'bg-red-600',
-    HIGH: 'bg-orange-500',
-    MEDIUM: 'bg-yellow-500',
-    LOW: 'bg-green-500'
-};
-
-const severityBorderColors: Record<string, string> = {
-    CRITICAL: 'border-l-red-600',
-    HIGH: 'border-l-orange-500',
-    MEDIUM: 'border-l-yellow-500',
-    LOW: 'border-l-green-500'
-};
-
 const severityIcons: Record<string, string> = {
     CRITICAL: 'codicon-error',
     HIGH: 'codicon-warning',
     MEDIUM: 'codicon-info',
     LOW: 'codicon-check'
+};
+
+// Helper to get severity class suffix
+const getSeverityClass = (severity: string): string => {
+    return severity.toLowerCase();
 };
 
 export const ReportPanel: React.FC<ReportPanelProps> = ({
@@ -113,22 +104,22 @@ export const ReportPanel: React.FC<ReportPanelProps> = ({
                 <SummaryCard 
                     value={data.summary.critical} 
                     label="Critical" 
-                    colorClass="text-red-500"
+                    severityClass="critical"
                 />
                 <SummaryCard 
                     value={data.summary.high} 
                     label="High" 
-                    colorClass="text-orange-500"
+                    severityClass="high"
                 />
                 <SummaryCard 
                     value={data.summary.medium} 
                     label="Medium" 
-                    colorClass="text-yellow-500"
+                    severityClass="medium"
                 />
                 <SummaryCard 
                     value={data.summary.low} 
                     label="Low" 
-                    colorClass="text-green-500"
+                    severityClass="low"
                 />
                 <SummaryCard 
                     value={data.summary.filesAffected} 
@@ -217,15 +208,15 @@ export const ReportPanel: React.FC<ReportPanelProps> = ({
 interface SummaryCardProps {
     value: number;
     label: string;
-    colorClass?: string;
+    severityClass?: string;
 }
 
-const SummaryCard: React.FC<SummaryCardProps> = ({ value, label, colorClass }) => (
-    <div className="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-3 text-center">
-        <span className={`text-2xl font-bold block ${colorClass || ''}`}>
+const SummaryCard: React.FC<SummaryCardProps> = ({ value, label, severityClass }) => (
+    <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border-default)] rounded-lg p-3 text-center">
+        <span className={`text-2xl font-bold block ${severityClass ? `summary-value--${severityClass}` : ''}`}>
             {value}
         </span>
-        <span className="text-xs text-[var(--vscode-descriptionForeground)] uppercase tracking-wide">
+        <span className="text-xs text-[var(--color-text-secondary)] uppercase tracking-wide">
             {label}
         </span>
     </div>
@@ -237,8 +228,7 @@ interface VulnerabilityCardProps {
 }
 
 const VulnerabilityCard: React.FC<VulnerabilityCardProps> = ({ vuln, onClick }) => {
-    const borderColor = severityBorderColors[vuln.severity] || 'border-l-gray-500';
-    const bgColor = severityColors[vuln.severity] || 'bg-gray-500';
+    const severityClass = getSeverityClass(vuln.severity);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -249,7 +239,7 @@ const VulnerabilityCard: React.FC<VulnerabilityCardProps> = ({ vuln, onClick }) 
 
     return (
         <div 
-            className={`bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-4 border-l-4 ${borderColor} cursor-pointer hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]`}
+            className={`vuln-card vuln-card--${severityClass} cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]`}
             onClick={onClick}
             role="button"
             tabIndex={0}
@@ -257,15 +247,15 @@ const VulnerabilityCard: React.FC<VulnerabilityCardProps> = ({ vuln, onClick }) 
             aria-label={`${vuln.severity} vulnerability: ${vuln.message}`}
         >
             <div className="flex items-center gap-3 mb-2">
-                <span className={`${bgColor} text-white text-xs font-semibold px-2 py-0.5 rounded flex items-center gap-1`}>
+                <span className={`severity-badge severity-badge--${severityClass}`}>
                     <span className={`codicon ${severityIcons[vuln.severity]}`}></span>
                     {vuln.severity}
                 </span>
-                <span className="text-xs text-[var(--vscode-descriptionForeground)]">
+                <span className="text-xs text-[var(--color-text-secondary)]">
                     {vuln.ruleId}
                 </span>
                 {vuln.probability !== undefined && (
-                    <span className="text-xs text-[var(--vscode-descriptionForeground)]">
+                    <span className="text-xs text-[var(--color-text-secondary)]">
                         {(vuln.probability * 100).toFixed(1)}% confidence
                     </span>
                 )}
@@ -273,8 +263,8 @@ const VulnerabilityCard: React.FC<VulnerabilityCardProps> = ({ vuln, onClick }) 
 
             <p className="text-sm mb-2">{vuln.message}</p>
 
-            <div className="flex items-center gap-2 text-xs font-mono text-[var(--vscode-descriptionForeground)]">
-                <span className="text-[var(--vscode-textLink-foreground)]">{vuln.file}</span>
+            <div className="flex items-center gap-2 text-xs font-mono text-[var(--color-text-secondary)]">
+                <span className="text-[var(--color-text-link)]">{vuln.file}</span>
                 <span>Line {vuln.line}{vuln.endLine && vuln.endLine !== vuln.line ? `-${vuln.endLine}` : ''}</span>
                 {vuln.functionName && <span>in {vuln.functionName}()</span>}
             </div>

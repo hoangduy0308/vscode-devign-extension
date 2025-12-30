@@ -7,11 +7,9 @@ interface ScanResultsProps {
     results: ScanResultPayload;
 }
 
-const SeverityColors = {
-    [Severity.CRITICAL]: 'bg-[var(--vscode-inputValidation-errorBackground)] text-[var(--vscode-errorForeground)] border border-[var(--vscode-inputValidation-errorBorder)]',
-    [Severity.HIGH]: 'bg-[var(--vscode-inputValidation-warningBackground)] text-[var(--vscode-editorWarning-foreground)] border border-[var(--vscode-inputValidation-warningBorder)]',
-    [Severity.MEDIUM]: 'bg-[var(--vscode-inputValidation-infoBackground)] text-[var(--vscode-editorInfo-foreground)] border border-[var(--vscode-inputValidation-infoBorder)]',
-    [Severity.LOW]: 'bg-[var(--vscode-editor-inactiveSelectionBackground)] text-[var(--vscode-foreground)] border border-[var(--vscode-editor-selectionHighlightBorder)]'
+// Helper to get severity class suffix
+const getSeverityClass = (severity: Severity): string => {
+    return severity.toLowerCase();
 };
 
 export const ScanResults: React.FC<ScanResultsProps> = ({ results }) => {
@@ -81,10 +79,7 @@ export const ScanResults: React.FC<ScanResultsProps> = ({ results }) => {
                             key={sev}
                             onClick={() => toggleFilter(sev)}
                             aria-pressed={isActive}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${isActive
-                                ? SeverityColors[sev]
-                                : 'bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)] border-[var(--vscode-button-border)] hover:bg-[var(--vscode-button-secondaryHoverBackground)]'
-                                }`}
+                            className={`severity-badge ${isActive ? `severity-badge--${getSeverityClass(sev)}` : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border-default)]'} cursor-pointer hover:opacity-80`}
                         >
                             {sev} ({results.summary[sev.toLowerCase() as keyof typeof results.summary]})
                         </button>
@@ -105,33 +100,33 @@ export const ScanResults: React.FC<ScanResultsProps> = ({ results }) => {
                             key={vuln.id}
                             role="listitem"
                             tabIndex={0}
-                            className="border rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer bg-[var(--vscode-editor-background)] border-[var(--vscode-panel-border)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
+                            className={`vuln-card vuln-card--${getSeverityClass(vuln.severity)} cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]`}
                             onClick={() => handleOpenFile(vuln.file, vuln.range)}
                             onKeyDown={(e) => handleKeyDown(e, vuln.file, vuln.range)}
                             aria-label={`${vuln.severity} vulnerability: ${vuln.description}`}
                         >
                             <div className="flex justify-between items-start mb-2">
                                 <div className="flex gap-2 items-center">
-                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${SeverityColors[vuln.severity]}`}>
+                                    <span className={`severity-badge severity-badge--${getSeverityClass(vuln.severity)}`}>
                                         {vuln.severity}
                                     </span>
-                                    <span className="font-mono text-xs text-[var(--vscode-descriptionForeground)]">
+                                    <span className="font-mono text-xs text-[var(--color-text-secondary)]">
                                         {vuln.type}
                                     </span>
                                 </div>
-                                <span className="text-xs text-[var(--vscode-descriptionForeground)]">
+                                <span className="text-xs text-[var(--color-text-secondary)]">
                                     Conf: {(vuln.confidence * 100).toFixed(0)}%
                                 </span>
                             </div>
 
-                            <p className="text-sm mb-2 font-medium text-[var(--vscode-foreground)]">{vuln.description}</p>
+                            <p className="text-sm mb-2 font-medium text-[var(--color-text-primary)]">{vuln.description}</p>
 
-                            <div className="text-xs text-[var(--vscode-textLink-foreground)] font-mono truncate" title={vuln.file}>
+                            <div className="text-xs text-[var(--color-text-link)] font-mono truncate" title={vuln.file}>
                                 {vuln.file}:{vuln.range.startLine}
                             </div>
 
                             {vuln.snippet && (
-                                <pre className="mt-2 p-2 bg-[var(--vscode-textBlockQuote-background)] border border-[var(--vscode-textBlockQuote-border)] rounded text-xs overflow-x-auto font-mono text-[var(--vscode-foreground)]">
+                                <pre className="mt-2 p-2 bg-[var(--vscode-textBlockQuote-background)] border border-[var(--vscode-textBlockQuote-border)] rounded text-xs overflow-x-auto font-mono text-[var(--color-text-primary)]">
                                     {vuln.snippet}
                                 </pre>
                             )}
