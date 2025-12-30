@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { type ScanResultPayload, Severity, MessageType } from '../types';
 import { vscode } from '../utilities/vscode';
+import { state } from '../utilities/messages';
 
 interface ScanResultsProps {
     results: ScanResultPayload;
@@ -14,7 +15,19 @@ const SeverityColors = {
 };
 
 export const ScanResults: React.FC<ScanResultsProps> = ({ results }) => {
-    const [filters, setFilters] = useState<Set<Severity>>(new Set(Object.values(Severity)));
+    // Restore filters from persisted state or default to all severities
+    const [filters, setFilters] = useState<Set<Severity>>(() => {
+        const savedState = state.get();
+        if (savedState?.scanResultsFilters && savedState.scanResultsFilters.length > 0) {
+            return new Set(savedState.scanResultsFilters as Severity[]);
+        }
+        return new Set(Object.values(Severity));
+    });
+
+    // Persist filters when they change
+    useEffect(() => {
+        state.update({ scanResultsFilters: Array.from(filters) });
+    }, [filters]);
 
     const toggleFilter = (severity: Severity) => {
         const newFilters = new Set(filters);

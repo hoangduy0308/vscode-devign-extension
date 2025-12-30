@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { state } from '../utilities/messages';
 
 export interface ReportVulnerability {
     id: string;
@@ -65,8 +66,25 @@ export const ReportPanel: React.FC<ReportPanelProps> = ({
     onExport,
     onVulnerabilityClick
 }) => {
-    const [filter, setFilter] = useState<SeverityFilter>('ALL');
-    const [sortBy, setSortBy] = useState<'severity' | 'file'>('severity');
+    // Restore filter and sort from persisted state
+    const [filter, setFilter] = useState<SeverityFilter>(() => {
+        const savedState = state.get();
+        return savedState?.reportFilter || 'ALL';
+    });
+    const [sortBy, setSortBy] = useState<'severity' | 'file'>(() => {
+        const savedState = state.get();
+        return savedState?.reportSortBy || 'severity';
+    });
+
+    // Persist filter when it changes
+    useEffect(() => {
+        state.update({ reportFilter: filter });
+    }, [filter]);
+
+    // Persist sortBy when it changes
+    useEffect(() => {
+        state.update({ reportSortBy: sortBy });
+    }, [sortBy]);
 
     const filteredVulns = data.vulnerabilities
         .filter(v => filter === 'ALL' || v.severity === filter)

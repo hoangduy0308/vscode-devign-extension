@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { type ScanResultPayload, type ReportData, MessageType } from './types';
 import { ScanResults } from './components/ScanResults';
 import { Dashboard } from './components/Dashboard';
@@ -32,6 +32,9 @@ function App() {
     const savedState = state.get();
     return savedState?.viewMode || 'dashboard';
   });
+  
+  // Ref for scroll container
+  const mainRef = useRef<HTMLElement>(null);
 
   // Derive gate status from scan status and results
   const gateStatus = getGateStatusFromScan(scanStatus, scanResult);
@@ -44,6 +47,31 @@ function App() {
     staged: ['src/components/Dashboard.tsx', 'src/components/SecurityGate.tsx'],
     unstaged: ['src/App.tsx']
   });
+
+  // Restore scroll position on mount
+  useEffect(() => {
+    const savedState = state.get();
+    if (savedState?.scrollPosition && mainRef.current) {
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        if (mainRef.current) {
+          mainRef.current.scrollTop = savedState.scrollPosition || 0;
+        }
+      });
+    }
+  }, []);
+
+  // Save scroll position on scroll (debounced)
+  const handleScroll = useCallback(() => {
+    if (mainRef.current) {
+      const scrollTop = mainRef.current.scrollTop;
+      // Debounce by only saving if scroll position changed significantly
+      const savedPosition = state.get()?.scrollPosition || 0;
+      if (Math.abs(scrollTop - savedPosition) > 50) {
+        state.saveScrollPosition(scrollTop);
+      }
+    }
+  }, []);
 
   const handleGitAction = (action: string, data: string | { remote?: string }) => {
     let gitAction: GitAction;
@@ -139,7 +167,13 @@ function App() {
         onClose={() => setScanStatus({ status: 'idle' })}
       />
       
-      <main className="p-4 flex flex-col gap-4 max-w-4xl mx-auto" role="main" aria-label="Devign Scanner Dashboard">
+      <main 
+        ref={mainRef}
+        onScroll={handleScroll}
+        className="p-4 flex flex-col gap-4 max-w-4xl mx-auto overflow-y-auto max-h-screen" 
+        role="main" 
+        aria-label="Devign Scanner Dashboard"
+      >
         {/* View Toggle */}
         <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3" role="tablist" aria-label="View mode tabs">
           <button

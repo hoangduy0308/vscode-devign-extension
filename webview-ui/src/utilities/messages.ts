@@ -67,10 +67,11 @@ export const messages = {
 export interface WebviewState {
   viewMode?: 'dashboard' | 'report';
   selectedVulnId?: string;
-  filters?: {
-    severity?: string[];
-    file?: string;
-  };
+  // ScanResults filters (severity toggles)
+  scanResultsFilters?: string[];
+  // ReportPanel filters
+  reportFilter?: 'ALL' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  reportSortBy?: 'severity' | 'file';
   scrollPosition?: number;
   collapsedSections?: string[];
 }
@@ -87,5 +88,15 @@ export const state = {
   update: (partial: Partial<WebviewState>): WebviewState | undefined => {
     const current = state.get() || {};
     return state.set({ ...current, ...partial });
+  },
+
+  // Helper to save scroll position
+  saveScrollPosition: (position: number): void => {
+    state.update({ scrollPosition: position });
+  },
+
+  // Helper to get scroll position
+  getScrollPosition: (): number => {
+    return state.get()?.scrollPosition || 0;
   }
 };
