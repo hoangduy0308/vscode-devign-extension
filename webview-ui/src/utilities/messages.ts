@@ -35,7 +35,7 @@ export const messages = {
     });
   },
 
-  runScan: (options?: { files?: string[] }) => {
+  runScan: (options?: { scope?: 'file' | 'workspace' | 'selection'; files?: string[] }) => {
     vscode.postMessage({
       type: MessageType.RUN_SCAN,
       payload: options
@@ -59,6 +59,57 @@ export const messages = {
     vscode.postMessage({
       type: MessageType.GIT_ACTION,
       payload: action
+    });
+  },
+
+  // Phase 3.2 new messaging functions
+  scanCurrentFile: () => {
+    vscode.postMessage({
+      type: MessageType.SCAN_CURRENT_FILE
+    });
+  },
+
+  scanWorkspace: () => {
+    vscode.postMessage({
+      type: MessageType.SCAN_WORKSPACE
+    });
+  },
+
+  scanSelection: () => {
+    vscode.postMessage({
+      type: MessageType.SCAN_SELECTION
+    });
+  },
+
+  commitWithGate: (message?: string, files?: string[]) => {
+    vscode.postMessage({
+      type: MessageType.COMMIT_WITH_GATE,
+      payload: { message, files }
+    });
+  },
+
+  pushWithGate: () => {
+    vscode.postMessage({
+      type: MessageType.PUSH_WITH_GATE
+    });
+  },
+
+  pullWithScan: () => {
+    vscode.postMessage({
+      type: MessageType.PULL_WITH_SCAN
+    });
+  },
+
+  revealFinding: (finding: { file: string; line: number; column?: number }) => {
+    vscode.postMessage({
+      type: MessageType.REVEAL_FINDING,
+      payload: finding
+    });
+  },
+
+  openSettings: () => {
+    vscode.postMessage({
+      type: MessageType.OPEN_SETTINGS
     });
   }
 };

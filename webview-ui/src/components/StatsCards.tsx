@@ -65,9 +65,6 @@ const labelStyles: React.CSSProperties = {
 };
 
 const gridStyles: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: `repeat(auto-fit, minmax(var(--stats-card-min-width), 1fr))`,
-  gap: 'var(--stats-card-gap)',
   width: '100%',
 };
 
@@ -129,6 +126,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
 
   return (
     <div
+      className="stats-grid"
       style={gridStyles}
       role="group"
       aria-label="Vulnerability severity statistics"

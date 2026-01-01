@@ -34,6 +34,8 @@ export const SecurityGateCompact: React.FC<SecurityGateCompactProps> = ({
   return (
     <div
       className="security-gate-compact"
+      role="region"
+      aria-label="Security gate status"
       style={{
         background: 'var(--card-bg)',
         border: '1px solid var(--card-border)',

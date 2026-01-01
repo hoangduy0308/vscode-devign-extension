@@ -12,6 +12,7 @@ export enum MessageType {
     GATE_STATUS = 'GATE_STATUS',
     CONFIGURATION = 'CONFIGURATION',
     REPORT_DATA = 'REPORT_DATA',
+    ACTION_RESULT = 'ACTION_RESULT',
 
     // Webview -> VSCode
     START_SCAN = 'START_SCAN',
@@ -19,7 +20,18 @@ export enum MessageType {
     OPEN_FILE = 'OPEN_FILE',
     UPDATE_CONFIG = 'UPDATE_CONFIG',
     EXPORT_REPORT = 'EXPORT_REPORT',
-    GIT_ACTION = 'GIT_ACTION'
+    GIT_ACTION = 'GIT_ACTION',
+    
+    // New Phase 3.2 messages
+    SCAN_CURRENT_FILE = 'SCAN_CURRENT_FILE',
+    SCAN_WORKSPACE = 'SCAN_WORKSPACE',
+    SCAN_SELECTION = 'SCAN_SELECTION',
+    CANCEL_SCAN = 'CANCEL_SCAN',
+    COMMIT_WITH_GATE = 'COMMIT_WITH_GATE',
+    PUSH_WITH_GATE = 'PUSH_WITH_GATE',
+    PULL_WITH_SCAN = 'PULL_WITH_SCAN',
+    REVEAL_FINDING = 'REVEAL_FINDING',
+    OPEN_SETTINGS = 'OPEN_SETTINGS'
 }
 
 export enum ScanStatus {
@@ -49,6 +61,29 @@ export interface GateStatusPayload {
     lastRunTime?: number;
     scannedFilesCount?: number;
     scannedFunctionsCount?: number;
+}
+
+// Action Result Payload
+export interface ActionResultPayload {
+    action: string;
+    success: boolean;
+    message?: string;
+    error?: string;
+}
+
+// Reveal Finding Payload
+export interface RevealFindingPayload {
+    file: string;
+    line: number;
+    column?: number;
+    endLine?: number;
+    endColumn?: number;
+}
+
+// Commit With Gate Payload
+export interface CommitWithGatePayload {
+    message: string;
+    files?: string[];
 }
 
 export enum Severity {

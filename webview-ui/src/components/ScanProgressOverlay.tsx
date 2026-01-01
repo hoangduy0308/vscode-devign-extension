@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { messages, type ScanStatusPayload } from '../utilities/messages';
 
 export type ScanState = 'idle' | 'scanning' | 'completed' | 'error';
@@ -57,6 +57,8 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
   const filesScanned = status.filesScanned ?? 0;
   const totalFiles = status.totalFiles ?? 0;
   const message = status.message;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
 
   const handleCancel = () => {
     messages.cancelScan();
@@ -65,6 +67,47 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
   const handleRetry = () => {
     messages.runScan();
   };
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' && onClose) {
+      e.preventDefault();
+      onClose();
+    }
+    
+    // Trap focus within dialog
+    if (e.key === 'Tab') {
+      const focusableElements = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusableElements || focusableElements.length === 0) return;
+      
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    }
+  }, [onClose]);
+
+  // Focus management for modal
+  useEffect(() => {
+    if (state !== 'idle') {
+      previousActiveElement.current = document.activeElement as HTMLElement;
+      
+      // Focus first button in dialog
+      const firstButton = dialogRef.current?.querySelector<HTMLElement>('button');
+      firstButton?.focus();
+      
+      return () => {
+        previousActiveElement.current?.focus();
+      };
+    }
+  }, [state]);
 
   // Don't show overlay for idle state unless explicitly needed
   if (state === 'idle') {
@@ -78,8 +121,12 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
       aria-modal="true"
       aria-labelledby="scan-progress-title"
       aria-describedby="scan-progress-description"
+      onKeyDown={handleKeyDown}
     >
-      <div className="bg-[var(--color-bg-elevated)] rounded-lg shadow-xl border border-[var(--color-border-default)] p-6 max-w-md w-full mx-4 animate-in fade-in zoom-in duration-200">
+      <div 
+        ref={dialogRef}
+        className="bg-[var(--color-bg-elevated)] rounded-lg shadow-xl border border-[var(--color-border-default)] p-6 max-w-md w-full mx-4 animate-in fade-in zoom-in duration-200"
+      >
         {/* Close button for completed/error states */}
         {(state === 'completed' || state === 'error') && onClose && (
           <button

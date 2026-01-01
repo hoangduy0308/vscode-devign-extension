@@ -440,3 +440,25 @@ body {
   --focus-ring-offset: 2px;
   --focus-ring-style: solid;
 }
+
+/* ============================================
+   RESPONSIVE BREAKPOINT TOKENS
+   ============================================ */
+body {
+  /* Sidebar breakpoints */
+  --breakpoint-xs: 200px;
+  --breakpoint-sm: 300px;
+  --breakpoint-md: 400px;
+  
+  /* Responsive spacing */
+  --responsive-gap-xs: var(--space-1);
+  --responsive-gap-sm: var(--space-2);
+  --responsive-gap-md: var(--space-3);
+  --responsive-gap-lg: var(--space-4);
+  
+  /* Responsive font sizes */
+  --responsive-font-xs: var(--font-size-xs);
+  --responsive-font-sm: var(--font-size-sm);
+  --responsive-font-md: var(--font-size-base);
+  --responsive-font-lg: var(--font-size-md);
+}

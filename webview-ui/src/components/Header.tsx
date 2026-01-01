@@ -348,7 +348,7 @@ export const Header: React.FC<HeaderProps> = ({
       )}
 
       {/* Actions */}
-      <div style={styles.actions}>
+      <div style={styles.actions} className="header-actions">
         {/* Scan Dropdown */}
         {!isScanning && (
           <div

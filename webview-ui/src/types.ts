@@ -48,7 +48,17 @@ export const MessageType = {
     RUN_SCAN: 'RUN_SCAN',
     CANCEL_SCAN: 'CANCEL_SCAN',
     GATE_STATUS: 'GATE_STATUS',
-    GIT_STATUS: 'GIT_STATUS'
+    GIT_STATUS: 'GIT_STATUS',
+    ACTION_RESULT: 'ACTION_RESULT',
+    // Phase 3.2 new message types
+    SCAN_CURRENT_FILE: 'SCAN_CURRENT_FILE',
+    SCAN_WORKSPACE: 'SCAN_WORKSPACE',
+    SCAN_SELECTION: 'SCAN_SELECTION',
+    COMMIT_WITH_GATE: 'COMMIT_WITH_GATE',
+    PUSH_WITH_GATE: 'PUSH_WITH_GATE',
+    PULL_WITH_SCAN: 'PULL_WITH_SCAN',
+    REVEAL_FINDING: 'REVEAL_FINDING',
+    OPEN_SETTINGS: 'OPEN_SETTINGS'
 } as const;
 
 export type MessageType = typeof MessageType[keyof typeof MessageType];
@@ -104,4 +114,27 @@ export interface GateStatusPayload {
     lastRunTime?: number;
     scannedFilesCount?: number;
     scannedFunctionsCount?: number;
+}
+
+// Action Result Payload
+export interface ActionResultPayload {
+    action: string;
+    success: boolean;
+    message?: string;
+    error?: string;
+}
+
+// Reveal Finding Payload
+export interface RevealFindingPayload {
+    file: string;
+    line: number;
+    column?: number;
+    endLine?: number;
+    endColumn?: number;
+}
+
+// Commit With Gate Payload
+export interface CommitWithGatePayload {
+    message: string;
+    files?: string[];
 }

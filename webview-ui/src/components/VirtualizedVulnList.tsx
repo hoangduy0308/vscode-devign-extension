@@ -1,5 +1,5 @@
-import React, { memo, useCallback } from 'react';
-import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
+import React, { memo, useCallback, type CSSProperties } from 'react';
+import { List } from 'react-window';
 import { type Vulnerability, type Range, Severity, MessageType } from '../types';
 import { vscode } from '../utilities/vscode';
 
@@ -123,7 +123,7 @@ export const VirtualizedVulnList: React.FC<VirtualizedVulnListProps> = ({
   const hasSnippets = vulnerabilities.some(v => v.snippet);
   const itemHeight = hasSnippets ? ITEM_HEIGHT_WITH_SNIPPET : ITEM_HEIGHT;
 
-  const Row = useCallback(({ index, style }: ListChildComponentProps) => {
+  const Row = useCallback(({ index, style }: { index: number; style: CSSProperties }) => {
     const vuln = vulnerabilities[index];
     return (
       <div style={style}>
@@ -170,15 +170,14 @@ export const VirtualizedVulnList: React.FC<VirtualizedVulnListProps> = ({
   // For large lists, use virtualization
   return (
     <List
-      height={height}
-      itemCount={vulnerabilities.length}
-      itemSize={itemHeight}
-      width="100%"
+      rowCount={vulnerabilities.length}
+      rowHeight={itemHeight}
+      rowComponent={Row as any}
+      rowProps={{}}
       className="scrollbar-thin"
       role="list"
-    >
-      {Row}
-    </List>
+      style={{ height }}
+    />
   );
 };
 

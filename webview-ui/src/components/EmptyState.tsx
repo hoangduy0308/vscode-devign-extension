@@ -90,6 +90,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               onMouseOut={(e) => {
                 e.currentTarget.style.background = 'var(--vscode-button-background)';
               }}
+              aria-label={primaryAction.label}
             >
               {primaryAction.icon && (
                 <span className={`codicon ${primaryAction.icon}`} aria-hidden="true" />
@@ -113,6 +114,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               onMouseOut={(e) => {
                 e.currentTarget.style.background = 'var(--vscode-button-secondaryBackground)';
               }}
+              aria-label={secondaryAction.label}
             >
               {secondaryAction.label}
             </button>

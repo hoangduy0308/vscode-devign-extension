@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { getUri } from '../utilities/getUri';
 import { getNonce } from '../utilities/getNonce';
-import { MessageType, ScanStatus, PROTOCOL_VERSION, Severity, type ScanResultPayload, type ScanStatusPayload, type GitStatusPayload, type GateStatusPayload } from '../types/messages';
+import { MessageType, ScanStatus, PROTOCOL_VERSION, Severity, type ScanResultPayload, type ScanStatusPayload, type GitStatusPayload, type GateStatusPayload, type ActionResultPayload, type RevealFindingPayload, type CommitWithGatePayload } from '../types/messages';
 import { getSarifExportService, type SarifLog } from '../services/sarifExportService';
 import { getHtmlReportService, type HtmlReportData } from '../services/htmlReportService';
 import { GitService } from '../services/gitService';
@@ -22,6 +22,10 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     private _gitService: GitService;
     private _commitCommand: CommitCommand;
     private _pushCommand: PushCommand;
+    
+    private _pendingMessages: any[] = [];
+    private _batchTimeout: NodeJS.Timeout | null = null;
+    private static readonly BATCH_DELAY_MS = 50;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -95,6 +99,44 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
                 }
                 case MessageType.GIT_ACTION: {
                     await this._handleGitAction(data.payload);
+                    break;
+                }
+                // Phase 3.2 new message handlers
+                case MessageType.SCAN_CURRENT_FILE: {
+                    await this._handleScanCurrentFile();
+                    break;
+                }
+                case MessageType.SCAN_WORKSPACE: {
+                    await this._handleScanWorkspace();
+                    break;
+                }
+                case MessageType.SCAN_SELECTION: {
+                    await this._handleScanSelection();
+                    break;
+                }
+                case MessageType.CANCEL_SCAN: {
+                    this._cancelPendingScans();
+                    this.postActionResult({ action: 'cancelScan', success: true });
+                    break;
+                }
+                case MessageType.COMMIT_WITH_GATE: {
+                    await this._handleCommitWithGate(data.payload);
+                    break;
+                }
+                case MessageType.PUSH_WITH_GATE: {
+                    await this._handlePushWithGate();
+                    break;
+                }
+                case MessageType.PULL_WITH_SCAN: {
+                    await this._handlePullWithScan();
+                    break;
+                }
+                case MessageType.REVEAL_FINDING: {
+                    await this._handleRevealFinding(data.payload);
+                    break;
+                }
+                case MessageType.OPEN_SETTINGS: {
+                    await this._handleOpenSettings();
                     break;
                 }
             }
@@ -182,6 +224,25 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
         return extensions.some(ext => document.fileName.toLowerCase().endsWith(ext));
     }
 
+    private _queueMessage(message: any): void {
+        this._pendingMessages.push(message);
+        if (!this._batchTimeout) {
+            this._batchTimeout = setTimeout(() => this._flushMessages(), DevignWebviewProvider.BATCH_DELAY_MS);
+        }
+    }
+
+    private _flushMessages(): void {
+        if (this._pendingMessages.length > 0 && this._view) {
+            if (this._pendingMessages.length === 1) {
+                this._view.webview.postMessage(this._pendingMessages[0]);
+            } else {
+                this._view.webview.postMessage({ type: 'batch', messages: this._pendingMessages });
+            }
+            this._pendingMessages = [];
+        }
+        this._batchTimeout = null;
+    }
+
     public postScanResult(result: ScanResultPayload) {
         this._view?.webview.postMessage({
             type: MessageType.SCAN_RESULT,
@@ -191,7 +252,7 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     public postScanStatus(status: ScanStatusPayload) {
-        this._view?.webview.postMessage({
+        this._queueMessage({
             type: MessageType.SCAN_STATUS,
             version: PROTOCOL_VERSION,
             payload: status
@@ -315,13 +376,134 @@ export class DevignWebviewProvider implements vscode.WebviewViewProvider {
                     break;
             }
             // Refresh git status after action
-            // This would ideally be handled by an event listener on the git service
+            await this._sendInitialGitStatus();
         } catch (error) {
             vscode.window.showErrorMessage(`Git action failed: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
+    // Phase 3.2 new handlers
+    private async _handleScanCurrentFile(): Promise<void> {
+        this.postScanStatus({ status: ScanStatus.SCANNING });
+        try {
+            await vscode.commands.executeCommand('devign.scanCurrentFile');
+            this.postActionResult({ action: 'scanCurrentFile', success: true });
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.postScanStatus({ status: ScanStatus.FAILED, message: errorMsg });
+            this.postActionResult({ action: 'scanCurrentFile', success: false, error: errorMsg });
+        }
+    }
+
+    private async _handleScanWorkspace(): Promise<void> {
+        this.postScanStatus({ status: ScanStatus.SCANNING });
+        try {
+            await vscode.commands.executeCommand('devign.scanWorkspace');
+            this.postActionResult({ action: 'scanWorkspace', success: true });
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.postScanStatus({ status: ScanStatus.FAILED, message: errorMsg });
+            this.postActionResult({ action: 'scanWorkspace', success: false, error: errorMsg });
+        }
+    }
+
+    private async _handleScanSelection(): Promise<void> {
+        this.postScanStatus({ status: ScanStatus.SCANNING });
+        try {
+            await vscode.commands.executeCommand('devign.scanSelection');
+            this.postActionResult({ action: 'scanSelection', success: true });
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.postScanStatus({ status: ScanStatus.FAILED, message: errorMsg });
+            this.postActionResult({ action: 'scanSelection', success: false, error: errorMsg });
+        }
+    }
+
+    private async _handleCommitWithGate(payload?: CommitWithGatePayload): Promise<void> {
+        try {
+            if (payload?.message) {
+                const originalPrompt = this._commitCommand['promptForCommitMessage'];
+                this._commitCommand['promptForCommitMessage'] = async () => payload.message;
+                try {
+                    await this._commitCommand.execute();
+                    this.postActionResult({ action: 'commitWithGate', success: true, message: 'Commit successful' });
+                } finally {
+                    this._commitCommand['promptForCommitMessage'] = originalPrompt;
+                }
+            } else {
+                await this._commitCommand.execute();
+                this.postActionResult({ action: 'commitWithGate', success: true, message: 'Commit successful' });
+            }
+            await this._sendInitialGitStatus();
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.postActionResult({ action: 'commitWithGate', success: false, error: errorMsg });
+        }
+    }
+
+    private async _handlePushWithGate(): Promise<void> {
+        try {
+            await this._pushCommand.execute();
+            this.postActionResult({ action: 'pushWithGate', success: true, message: 'Push successful' });
+            await this._sendInitialGitStatus();
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.postActionResult({ action: 'pushWithGate', success: false, error: errorMsg });
+        }
+    }
+
+    private async _handlePullWithScan(): Promise<void> {
+        try {
+            await this._gitService.pull();
+            this.postActionResult({ action: 'pullWithScan', success: true, message: 'Pull successful' });
+            await this._sendInitialGitStatus();
+            // Trigger scan after pull
+            this.postScanStatus({ status: ScanStatus.SCANNING, message: 'Scanning after pull...' });
+            await vscode.commands.executeCommand('devign.scanWorkspace');
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.postActionResult({ action: 'pullWithScan', success: false, error: errorMsg });
+        }
+    }
+
+    private async _handleRevealFinding(payload: RevealFindingPayload): Promise<void> {
+        try {
+            await vscode.commands.executeCommand('devign.revealResult', {
+                filePath: payload.file,
+                line: payload.line,
+                column: payload.column ?? 0
+            });
+            this.postActionResult({ action: 'revealFinding', success: true });
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.postActionResult({ action: 'revealFinding', success: false, error: errorMsg });
+        }
+    }
+
+    private async _handleOpenSettings(): Promise<void> {
+        try {
+            await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:devign');
+            this.postActionResult({ action: 'openSettings', success: true });
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.postActionResult({ action: 'openSettings', success: false, error: errorMsg });
+        }
+    }
+
+    public postActionResult(result: ActionResultPayload): void {
+        this._view?.webview.postMessage({
+            type: MessageType.ACTION_RESULT,
+            version: PROTOCOL_VERSION,
+            payload: result
+        });
+    }
+
     public dispose() {
+        if (this._batchTimeout) {
+            clearTimeout(this._batchTimeout);
+            this._batchTimeout = null;
+        }
+        this._pendingMessages = [];
         for (const disposable of this._disposables) {
             disposable.dispose();
         }

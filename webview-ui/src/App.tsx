@@ -1,19 +1,21 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { type ScanResultPayload, type ReportData, type GitStatusPayload, type GateStatusPayload, MessageType } from './types';
-import { ScanResults } from './components/ScanResults';
-import { Dashboard } from './components/Dashboard';
-import { SecurityGate, type GateStatus } from './components/SecurityGate';
-import { GitPanel } from './components/GitPanel';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { type ScanResultPayload, type ReportData, type GitStatusPayload, type GateStatusPayload, type ActionResultPayload, MessageType } from './types';
+import { Header, type ScanStatus, type ScanScope } from './components/Header';
+import { StatsCards } from './components/StatsCards';
+import { SecurityGateCompact, type GateStatus } from './components/SecurityGateCompact';
+import { type Finding, type SeverityFilter, type GroupBy, type SortBy } from './components/FindingsList';
 import { ReportPanel } from './components/ReportPanel';
 import { ScanProgressOverlay } from './components/ScanProgressOverlay';
 import { EmptyState } from './components/EmptyState';
-import { messages, state, type GitAction, type ScanStatusPayload } from './utilities/messages';
+import { messages, state, type ScanStatusPayload } from './utilities/messages';
+
+const FindingsList = React.lazy(() => import('./components/FindingsList'));
+const GitQuickActions = React.lazy(() => import('./components/GitQuickActions'));
 
 type ViewMode = 'dashboard' | 'report';
 
-// Helper to convert scan status to gate status
-const getGateStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanResultPayload | null): GateStatus => {
-  if (scanStatus.status === 'scanning') return 'PENDING';
+const getStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanResultPayload | null): ScanStatus => {
+  if (scanStatus.status === 'scanning') return 'SCANNING';
   if (scanStatus.status === 'error') return 'FAILED';
   if (scanStatus.status === 'completed' || scanResult) {
     const hasCritical = scanResult?.summary.critical && scanResult.summary.critical > 0;
@@ -22,7 +24,59 @@ const getGateStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanRe
     if (hasHigh) return 'WARNING';
     return 'PASSED';
   }
-  return 'PENDING';
+  return 'IDLE';
+};
+
+const getGateStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanResultPayload | null): GateStatus => {
+  if (scanStatus.status === 'scanning') return 'SCANNING';
+  if (scanStatus.status === 'error') return 'FAILED';
+  if (scanStatus.status === 'completed' || scanResult) {
+    const hasCritical = scanResult?.summary.critical && scanResult.summary.critical > 0;
+    const hasHigh = scanResult?.summary.high && scanResult.summary.high > 0;
+    if (hasCritical) return 'FAILED';
+    if (hasHigh) return 'WARNING';
+    return 'PASSED';
+  }
+  return 'IDLE';
+};
+
+const convertToFindings = (scanResult: ScanResultPayload | null): Finding[] => {
+  if (!scanResult?.vulnerabilities) return [];
+  return scanResult.vulnerabilities.map((v, index) => ({
+    id: `finding-${index}`,
+    severity: (v.severity?.toLowerCase() || 'medium') as Finding['severity'],
+    title: v.type || 'Unknown Vulnerability',
+    description: v.description,
+    file: v.file || 'unknown',
+    line: v.range?.startLine || 0,
+  }));
+};
+
+const getGateMessage = (status: GateStatus): string => {
+  switch (status) {
+    case 'PASSED':
+      return 'Ready to commit · No blocking issues';
+    case 'WARNING':
+      return 'Review recommended · High severity issues found';
+    case 'FAILED':
+      return 'Blocked · Critical issues must be resolved';
+    case 'SCANNING':
+      return 'Analyzing code...';
+    default:
+      return 'Run a scan to check security status';
+  }
+};
+
+const getBlockedBy = (scanResult: ScanResultPayload | null): string[] => {
+  if (!scanResult?.summary) return [];
+  const blocked: string[] = [];
+  if (scanResult.summary.critical > 0) {
+    blocked.push(`${scanResult.summary.critical} Critical`);
+  }
+  if (scanResult.summary.high > 0) {
+    blocked.push(`${scanResult.summary.high} High`);
+  }
+  return blocked;
 };
 
 function App() {
@@ -33,77 +87,89 @@ function App() {
     const savedState = state.get();
     return savedState?.viewMode || 'dashboard';
   });
-  
-  // Ref for scroll container
-  const mainRef = useRef<HTMLElement>(null);
 
-  // Real data state from extension
   const [gitStatus, setGitStatus] = useState<GitStatusPayload | null>(null);
   const [gateStatusData, setGateStatusData] = useState<GateStatusPayload | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
 
-  // Derive gate status from scan status and results (fallback when no gateStatusData)
-  const gateStatus = gateStatusData?.status ?? getGateStatusFromScan(scanStatus, scanResult);
+  const [filter, setFilter] = useState<SeverityFilter>('all');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
+  const [sortBy, setSortBy] = useState<SortBy>('severity');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scanScope, setScanScope] = useState<ScanScope>('file');
+
+  const status = getStatusFromScan(scanStatus, scanResult);
+  const gateStatus = gateStatusData?.status as GateStatus ?? getGateStatusFromScan(scanStatus, scanResult);
   const gateProgress = gateStatusData?.progress ?? scanStatus.progress ?? (scanStatus.status === 'completed' ? 100 : 0);
+  
+  const findings = useMemo(() => convertToFindings(scanResult), [scanResult]);
+  
+  const blockedBy = useMemo(() => getBlockedBy(scanResult), [scanResult]);
+  const gateMessage = useMemo(() => getGateMessage(gateStatus), [gateStatus]);
 
-  // Restore scroll position on mount
-  useEffect(() => {
-    const savedState = state.get();
-    if (savedState?.scrollPosition && mainRef.current) {
-      // Use requestAnimationFrame to ensure DOM is ready
-      requestAnimationFrame(() => {
-        if (mainRef.current) {
-          mainRef.current.scrollTop = savedState.scrollPosition || 0;
-        }
-      });
+  const handleScan = useCallback((scope: ScanScope) => {
+    setScanScope(scope);
+    switch (scope) {
+      case 'file':
+        messages.scanCurrentFile();
+        break;
+      case 'workspace':
+        messages.scanWorkspace();
+        break;
+      case 'selection':
+        messages.scanSelection();
+        break;
     }
   }, []);
 
-  // Save scroll position on scroll (debounced)
-  const handleScroll = useCallback(() => {
-    if (mainRef.current) {
-      const scrollTop = mainRef.current.scrollTop;
-      // Debounce by only saving if scroll position changed significantly
-      const savedPosition = state.get()?.scrollPosition || 0;
-      if (Math.abs(scrollTop - savedPosition) > 50) {
-        state.saveScrollPosition(scrollTop);
-      }
-    }
+  const handleSettings = useCallback(() => {
+    messages.openSettings();
   }, []);
 
-  const handleGitAction = (action: string, data: string | { remote?: string }) => {
-    let gitAction: GitAction;
-    
-    switch (action) {
-      case 'checkout':
-        gitAction = { action: 'checkout', branch: data as string };
-        break;
-      case 'createBranch':
-        gitAction = { action: 'createBranch', name: data as string };
-        break;
-      case 'deleteBranch':
-        gitAction = { action: 'deleteBranch', name: data as string };
-        break;
-      case 'stage':
-        gitAction = { action: 'stage', file: data as string };
-        break;
-      case 'unstage':
-        gitAction = { action: 'unstage', file: data as string };
-        break;
-      case 'push':
-        gitAction = { action: 'push', remote: (data as { remote?: string })?.remote };
-        break;
-      case 'pull':
-        gitAction = { action: 'pull', remote: (data as { remote?: string })?.remote };
-        break;
-      default:
-        return;
-    }
-    
-    messages.git(gitAction);
-  };
+  const handleCancel = useCallback(() => {
+    messages.cancelScan();
+  }, []);
 
-  // Auto-switch to dashboard if on report view with no data
+  const handleFilterChange = useCallback((newFilter: SeverityFilter) => {
+    setFilter(newFilter);
+  }, []);
+
+  const handleGroupByChange = useCallback((newGroupBy: GroupBy) => {
+    setGroupBy(newGroupBy);
+  }, []);
+
+  const handleSortByChange = useCallback((newSortBy: SortBy) => {
+    setSortBy(newSortBy);
+  }, []);
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  const handleFindingClick = useCallback((finding: Finding) => {
+    messages.revealFinding({ file: finding.file, line: finding.line });
+  }, []);
+
+  const handleViewCode = useCallback((finding: Finding) => {
+    messages.revealFinding({ file: finding.file, line: finding.line });
+  }, []);
+
+  const handleCommit = useCallback(() => {
+    messages.commitWithGate();
+  }, []);
+
+  const handlePush = useCallback(() => {
+    messages.pushWithGate();
+  }, []);
+
+  const handlePull = useCallback(() => {
+    messages.pullWithScan();
+  }, []);
+
+  const handleCardClick = useCallback((severity: 'critical' | 'high' | 'medium' | 'low') => {
+    setFilter(severity);
+  }, []);
+
   useEffect(() => {
     if (viewMode === 'report' && !reportData) {
       setViewMode('dashboard');
@@ -112,8 +178,7 @@ function App() {
   }, [viewMode, reportData]);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      const message = event.data;
+    const processMessage = (message: any) => {
       switch (message.type) {
         case MessageType.SCAN_RESULT:
           setScanResult(message.payload);
@@ -127,7 +192,6 @@ function App() {
           break;
         case MessageType.SCAN_STATUS:
           setScanStatus(message.payload as ScanStatusPayload);
-          // Auto-dismiss overlay when scan completes successfully
           if (message.payload?.status === 'completed') {
             setTimeout(() => {
               setScanStatus({ status: 'idle' });
@@ -141,11 +205,24 @@ function App() {
         case MessageType.GATE_STATUS:
           setGateStatusData(message.payload);
           break;
+        case MessageType.ACTION_RESULT: {
+          const result = message.payload as ActionResultPayload;
+          console.log(`[Devign] Action ${result.action}: ${result.success ? 'success' : 'failed'}`, result.message || result.error);
+          break;
+        }
+      }
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+      if (message.type === 'batch' && Array.isArray(message.messages)) {
+        message.messages.forEach(processMessage);
+      } else {
+        processMessage(message);
       }
     };
 
     window.addEventListener('message', handleMessage);
-
     return () => {
       window.removeEventListener('message', handleMessage);
     };
@@ -169,14 +246,12 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--vscode-editor-background)] text-[var(--vscode-foreground)] font-[var(--vscode-font-family)]">
-      {/* Scan Progress Overlay */}
+    <div className="app">
       <ScanProgressOverlay 
         status={scanStatus} 
         onClose={() => setScanStatus({ status: 'idle' })}
       />
       
-      {/* Connecting State */}
       {isConnecting && (
         <div className="fixed inset-0 bg-[var(--vscode-editor-background)] bg-opacity-80 flex items-center justify-center z-50">
           <div className="flex flex-col items-center gap-3 p-6 bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg shadow-lg">
@@ -185,99 +260,78 @@ function App() {
           </div>
         </div>
       )}
-      
-      <main 
-        ref={mainRef}
-        onScroll={handleScroll}
-        className="p-4 flex flex-col gap-4 max-w-4xl mx-auto overflow-y-auto max-h-screen" 
-        role="main" 
-        aria-label="Devign Scanner Dashboard"
-      >
-        {/* View Toggle */}
-        <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3" role="tablist" aria-label="View mode tabs">
-          <button
-            onClick={() => handleViewModeChange('dashboard')}
-            className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'dashboard'
-              ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
-              : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
-              }`}
-            role="tab"
-            aria-selected={viewMode === 'dashboard'}
-            aria-controls="dashboard-panel"
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => reportData && handleViewModeChange('report')}
-            disabled={!reportData}
-            className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 ${viewMode === 'report'
-              ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
-              : !reportData
-                ? 'text-[var(--vscode-disabledForeground)] cursor-not-allowed opacity-50'
-                : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
-              }`}
-            role="tab"
-            aria-selected={viewMode === 'report'}
-            aria-controls="report-panel"
-            aria-disabled={!reportData}
-            title={!reportData ? 'No report data available. Run a scan first.' : undefined}
-          >
-            Report
-            {!reportData && <span className="text-xs opacity-70">(empty)</span>}
-          </button>
-        </div>
 
+      <Header
+        status={status}
+        scanScope={scanScope}
+        currentFile={undefined}
+        onScan={handleScan}
+        onSettings={handleSettings}
+        onCancel={handleCancel}
+      />
+
+      <main className="app-content" role="main" aria-label="Devign Scanner Dashboard">
         {viewMode === 'dashboard' ? (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" role="region" aria-label="Status Overview">
-              <Dashboard
-                stats={{
-                  totalScans: 12,
-                  vulnerabilitiesFound: scanResult?.summary.critical || 0,
-                  criticalIssues: scanResult?.summary.critical || 0
-                }}
-                modelVersion="1.0.0"
-                lastScanTime={scanResult ? new Date(scanResult.timestamp).toLocaleString() : null}
-              />
-
-              <div className="flex flex-col gap-4">
-                <SecurityGate
-                  status={gateStatus}
-                  progress={gateProgress}
-                  onAllowCommit={() => console.log('Allow commit')}
-                  onBlockCommit={() => console.log('Block commit')}
-                />
-                {gitStatus ? (
-                  <GitPanel
-                    branch={gitStatus.branch}
-                    branches={gitStatus.branches}
-                    stagedFiles={gitStatus.staged}
-                    unstagedFiles={gitStatus.unstaged}
-                    remotes={gitStatus.remotes}
-                    isPushing={gitStatus.isPushing}
-                    isPulling={gitStatus.isPulling}
-                    onBranchChange={(branch) => handleGitAction('checkout', branch)}
-                    onCreateBranch={(name) => handleGitAction('createBranch', name)}
-                    onDeleteBranch={(name) => handleGitAction('deleteBranch', name)}
-                    onStageFile={(file) => handleGitAction('stage', file)}
-                    onUnstageFile={(file) => handleGitAction('unstage', file)}
-                    onPush={(remote) => handleGitAction('push', { remote })}
-                    onPull={(remote) => handleGitAction('pull', { remote })}
-                  />
-                ) : (
-                  <div className="p-4 bg-[var(--vscode-editor-background)] rounded-lg shadow-sm border border-[var(--vscode-panel-border)]">
-                    <h2 className="text-lg font-bold text-[var(--vscode-foreground)] mb-3">Git Status</h2>
-                    <div className="flex items-center gap-2 text-[var(--vscode-descriptionForeground)]">
-                      <div className="animate-spin w-4 h-4 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div>
-                      <span className="text-sm">Loading git status...</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3 mb-4" role="tablist" aria-label="View mode tabs">
+              <button
+                onClick={() => handleViewModeChange('dashboard')}
+                className="px-3 py-1.5 rounded text-sm font-medium bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]"
+                role="tab"
+                aria-selected={true}
+                aria-controls="dashboard-panel"
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => reportData && handleViewModeChange('report')}
+                disabled={!reportData}
+                className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 ${!reportData
+                    ? 'text-[var(--vscode-disabledForeground)] cursor-not-allowed opacity-50'
+                    : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
+                  }`}
+                role="tab"
+                aria-selected={false}
+                aria-controls="report-panel"
+                aria-disabled={!reportData}
+                title={!reportData ? 'No report data available. Run a scan first.' : undefined}
+              >
+                Report
+                {!reportData && <span className="text-xs opacity-70">(empty)</span>}
+              </button>
             </div>
 
-            {scanResult ? (
-              <ScanResults results={scanResult} />
+            <StatsCards
+              critical={scanResult?.summary.critical || 0}
+              high={scanResult?.summary.high || 0}
+              medium={scanResult?.summary.medium || 0}
+              low={scanResult?.summary.low || 0}
+              onCardClick={handleCardClick}
+            />
+
+            <SecurityGateCompact
+              status={gateStatus}
+              progress={gateProgress}
+              message={gateMessage}
+              blockedBy={blockedBy}
+            />
+
+            {findings.length > 0 ? (
+              <Suspense fallback={<div className="flex items-center justify-center py-8"><div className="animate-spin w-6 h-6 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div></div>}>
+                <FindingsList
+                  findings={findings}
+                  filter={filter}
+                  groupBy={groupBy}
+                  sortBy={sortBy}
+                  searchQuery={searchQuery}
+                  onFilterChange={handleFilterChange}
+                  onGroupByChange={handleGroupByChange}
+                  onSortByChange={handleSortByChange}
+                  onSearchChange={handleSearchChange}
+                  onFindingClick={handleFindingClick}
+                  onViewCode={handleViewCode}
+                />
+              </Suspense>
             ) : (
               <EmptyState
                 icon="codicon-shield"
@@ -289,6 +343,22 @@ function App() {
                   icon: 'codicon-play'
                 }}
               />
+            )}
+
+            {gitStatus && (
+              <Suspense fallback={<div className="flex items-center justify-center py-4"><div className="animate-spin w-5 h-5 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div></div>}>
+                <GitQuickActions
+                  branch={gitStatus.branch}
+                  stagedCount={gitStatus.staged?.length || 0}
+                  unstagedCount={gitStatus.unstaged?.length || 0}
+                  isCommitting={false}
+                  isPushing={gitStatus.isPushing || false}
+                  isPulling={gitStatus.isPulling || false}
+                  onCommit={handleCommit}
+                  onPush={handlePush}
+                  onPull={handlePull}
+                />
+              </Suspense>
             )}
           </>
         ) : (
@@ -316,6 +386,29 @@ function App() {
           )
         )}
       </main>
+
+      <style>{`
+        .app {
+          display: flex;
+          flex-direction: column;
+          min-height: 100vh;
+          background: var(--vscode-editor-background);
+          color: var(--vscode-foreground);
+          font-family: var(--vscode-font-family);
+        }
+        
+        .app-content {
+          flex: 1;
+          overflow-y: auto;
+          padding: var(--space-4, 16px);
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-4, 16px);
+          max-width: 800px;
+          margin: 0 auto;
+          width: 100%;
+        }
+      `}</style>
     </div>
   );
 }

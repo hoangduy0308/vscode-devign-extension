@@ -270,4 +270,216 @@ body {
     opacity: 1;
     transform: none;
   }
+  
+  /* Global reduced motion - covers all animations and transitions */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY UTILITIES
+   ============================================ */
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  padding: 8px 16px;
+  z-index: 100;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+}
+
+.skip-link:focus {
+  top: 8px;
+  left: 8px;
+}
+
+/* Enhanced focus ring for high contrast */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 3px solid CanvasText !important;
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================
+   RESPONSIVE SIDEBAR BREAKPOINTS
+   ============================================ */
+
+/* Base responsive utilities */
+.stats-grid {
+  display: grid;
+  gap: var(--responsive-gap-md, var(--space-3));
+  width: 100%;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flex-wrap-responsive {
+  flex-wrap: wrap;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+/* xs breakpoint: < 200px (ultra compact) */
+@media (max-width: 199px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: var(--space-1);
+    align-items: stretch;
+  }
+  
+  .hide-xs {
+    display: none !important;
+  }
+  
+  .header-compact {
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+  
+  .btn-text-xs {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1);
+  }
+  
+  .card-padding-xs {
+    padding: var(--space-2);
+  }
+}
+
+/* sm breakpoint: 200-299px (compact) */
+@media (min-width: 200px) and (max-width: 299px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+  }
+  
+  .header-actions {
+    gap: var(--space-1);
+  }
+  
+  .hide-sm {
+    display: none !important;
+  }
+  
+  .card-padding-sm {
+    padding: var(--space-3);
+  }
+  
+  .font-sm-smaller {
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* md breakpoint: 300-399px (normal) */
+@media (min-width: 300px) and (max-width: 399px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+  
+  .header-actions {
+    gap: var(--space-2);
+  }
+  
+  .hide-md {
+    display: none !important;
+  }
+}
+
+/* lg breakpoint: >= 400px (expanded) */
+@media (min-width: 400px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+  }
+  
+  .header-actions {
+    gap: var(--space-3);
+  }
+  
+  .show-lg {
+    display: flex !important;
+  }
+  
+  .header-expanded {
+    gap: var(--space-4);
+  }
+}
+
+/* Container query support for modern browsers */
+@supports (container-type: inline-size) {
+  .responsive-container {
+    container-type: inline-size;
+  }
+  
+  @container (max-width: 199px) {
+    .stats-grid {
+      grid-template-columns: 1fr;
+      gap: var(--space-1);
+    }
+  }
+  
+  @container (min-width: 200px) and (max-width: 299px) {
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-2);
+    }
+  }
+  
+  @container (min-width: 300px) and (max-width: 399px) {
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-3);
+    }
+  }
+  
+  @container (min-width: 400px) {
+    .stats-grid {
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+    }
+  }
 }
