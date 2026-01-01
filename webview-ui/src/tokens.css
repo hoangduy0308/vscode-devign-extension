@@ -235,3 +235,208 @@ body {
   --icon-size-lg: 1.5rem;    /* 24px */
   --icon-size-xl: 2rem;      /* 32px */
 }
+
+/* ============================================
+   CARD TOKENS
+   ============================================ */
+body {
+  /* Card backgrounds */
+  --card-bg: var(--vscode-editor-background);
+  --card-bg-hover: var(--vscode-list-hoverBackground);
+  --card-bg-active: var(--vscode-list-activeSelectionBackground);
+  
+  /* Card borders */
+  --card-border: var(--vscode-panel-border);
+  --card-border-hover: var(--vscode-focusBorder);
+  
+  /* Card dimensions */
+  --card-radius: var(--radius-lg);
+  --card-padding: var(--space-4);
+  --card-gap: var(--space-3);
+  
+  /* Card shadows */
+  --card-shadow: var(--shadow-sm);
+  --card-shadow-hover: var(--shadow-md);
+  --card-shadow-active: var(--shadow-lg);
+}
+
+/* ============================================
+   HEADER TOKENS
+   ============================================ */
+body {
+  /* Header layout */
+  --header-height: 48px;
+  --header-padding: var(--space-3) var(--space-4);
+  
+  /* Header colors */
+  --header-bg: var(--vscode-sideBar-background);
+  --header-border: var(--vscode-panel-border);
+  
+  /* Header typography */
+  --header-font-size: var(--font-size-sm);
+  --header-font-weight: var(--font-weight-medium);
+}
+
+/* ============================================
+   STATUS TOKENS
+   ============================================ */
+body {
+  /* Gate status colors */
+  --status-passed: #22c55e;
+  --status-passed-bg: rgba(34, 197, 94, 0.15);
+  --status-passed-border: rgba(34, 197, 94, 0.5);
+  
+  --status-failed: #ef4444;
+  --status-failed-bg: rgba(239, 68, 68, 0.15);
+  --status-failed-border: rgba(239, 68, 68, 0.5);
+  
+  --status-warning: #f97316;
+  --status-warning-bg: rgba(249, 115, 22, 0.15);
+  --status-warning-border: rgba(249, 115, 22, 0.5);
+  
+  --status-scanning: #3b82f6;
+  --status-scanning-bg: rgba(59, 130, 246, 0.15);
+  --status-scanning-border: rgba(59, 130, 246, 0.5);
+  
+  --status-idle: #6b7280;
+  --status-idle-bg: rgba(107, 114, 128, 0.15);
+  --status-idle-border: rgba(107, 114, 128, 0.5);
+}
+
+/* ============================================
+   LAYOUT TOKENS
+   ============================================ */
+body {
+  /* Content area */
+  --content-max-width: 100%;
+  --content-padding: var(--space-4);
+  
+  /* Section spacing */
+  --section-gap: var(--space-6);
+  --section-margin: var(--space-4) 0;
+  
+  /* Stats cards grid */
+  --stats-card-min-width: 80px;
+  --stats-card-gap: var(--space-3);
+  
+  /* Findings list */
+  --finding-item-padding: var(--space-3);
+  --finding-item-gap: var(--space-2);
+  --finding-item-radius: var(--radius-md);
+  
+  /* Git actions bar */
+  --git-bar-height: 44px;
+  --git-bar-padding: var(--space-2) var(--space-4);
+}
+
+/* ============================================
+   BUTTON TOKENS
+   ============================================ */
+body {
+  /* Primary button */
+  --button-primary-bg: var(--vscode-button-background);
+  --button-primary-bg-hover: var(--vscode-button-hoverBackground);
+  --button-primary-text: var(--vscode-button-foreground);
+  
+  /* Secondary button */
+  --button-secondary-bg: var(--vscode-button-secondaryBackground);
+  --button-secondary-bg-hover: var(--vscode-button-secondaryHoverBackground);
+  --button-secondary-text: var(--vscode-button-secondaryForeground);
+  
+  /* Ghost button */
+  --button-ghost-bg: transparent;
+  --button-ghost-bg-hover: var(--vscode-toolbar-hoverBackground);
+  --button-ghost-text: var(--vscode-foreground);
+  
+  /* Button dimensions */
+  --button-height-sm: 24px;
+  --button-height-md: 32px;
+  --button-height-lg: 40px;
+  --button-padding-sm: var(--space-2) var(--space-3);
+  --button-padding-md: var(--space-2) var(--space-4);
+  --button-padding-lg: var(--space-3) var(--space-6);
+  --button-radius: var(--radius-md);
+}
+
+/* ============================================
+   INPUT TOKENS
+   ============================================ */
+body {
+  /* Input colors */
+  --input-bg: var(--vscode-input-background);
+  --input-border: var(--vscode-input-border, var(--vscode-panel-border));
+  --input-border-focus: var(--vscode-focusBorder);
+  --input-text: var(--vscode-input-foreground);
+  --input-placeholder: var(--vscode-input-placeholderForeground);
+  
+  /* Input dimensions */
+  --input-height: 28px;
+  --input-padding: var(--space-2) var(--space-3);
+  --input-radius: var(--radius-md);
+}
+
+/* ============================================
+   DROPDOWN TOKENS
+   ============================================ */
+body {
+  /* Dropdown colors */
+  --dropdown-bg: var(--vscode-dropdown-background);
+  --dropdown-border: var(--vscode-dropdown-border, var(--vscode-panel-border));
+  --dropdown-text: var(--vscode-dropdown-foreground);
+  
+  /* Dropdown list */
+  --dropdown-list-bg: var(--vscode-dropdown-listBackground, var(--vscode-dropdown-background));
+  --dropdown-item-hover-bg: var(--vscode-list-hoverBackground);
+  --dropdown-item-active-bg: var(--vscode-list-activeSelectionBackground);
+}
+
+/* ============================================
+   PROGRESS BAR TOKENS
+   ============================================ */
+body {
+  /* Progress bar dimensions */
+  --progress-height: 4px;
+  --progress-radius: var(--radius-full);
+  
+  /* Progress bar colors */
+  --progress-bg: var(--vscode-progressBar-background, rgba(255, 255, 255, 0.1));
+  --progress-fill: var(--vscode-progressBar-background, var(--status-scanning));
+}
+
+/* ============================================
+   BADGE TOKENS
+   ============================================ */
+body {
+  /* Badge dimensions */
+  --badge-height: 20px;
+  --badge-padding: 0 var(--space-2);
+  --badge-radius: var(--radius-sm);
+  --badge-font-size: var(--font-size-xs);
+  --badge-font-weight: var(--font-weight-semibold);
+}
+
+/* ============================================
+   SCROLLBAR TOKENS
+   ============================================ */
+body {
+  /* Scrollbar dimensions */
+  --scrollbar-width: 8px;
+  --scrollbar-radius: var(--radius-full);
+  
+  /* Scrollbar colors */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: var(--vscode-scrollbarSlider-background);
+  --scrollbar-thumb-hover: var(--vscode-scrollbarSlider-hoverBackground);
+  --scrollbar-thumb-active: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* ============================================
+   FOCUS TOKENS
+   ============================================ */
+body {
+  /* Focus ring */
+  --focus-ring-color: var(--vscode-focusBorder);
+  --focus-ring-width: 1px;
+  --focus-ring-offset: 2px;
+  --focus-ring-style: solid;
+}
