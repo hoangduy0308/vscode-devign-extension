@@ -6,7 +6,6 @@ import * as os from 'os';
 import { DevignScanner, ScanResult } from './scanner';
 import { ResultsPanel } from './resultsPanel';
 import { DecorationManager, DangerousLine, FileVulnerabilityResult, disposeDecorations, setExtensionPath } from './decorations';
-import { DevignSidebarProvider } from './sidebarProvider';
 import { DevignWebviewProvider } from './webview/DevignWebviewProvider';
 import { disposeHybridScanService } from './services/hybridScanService';
 import { getGitHubAuthService } from './services/githubAuthService';
@@ -14,7 +13,6 @@ import { getPRService } from './services/prService';
 import { GitService } from './services/gitService';
 import { getGitHubSarifUploadService } from './services/githubSarifUploadService';
 import { getSarifExportService, SarifLog } from './services/sarifExportService';
-import { registerGatePanel } from './ui/gatePanel';
 
 let scanner: DevignScanner;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -22,7 +20,6 @@ let statusBarItem: vscode.StatusBarItem;
 let resultsPanel: ResultsPanel | undefined;
 let decorationManager: DecorationManager;
 let outputChannel: vscode.OutputChannel;
-let sidebarProvider: DevignSidebarProvider;
 
 // Scan state management
 let scanInProgress = false;
@@ -103,18 +100,11 @@ export function activate(context: vscode.ExtensionContext) {
         log(`Failed to load tree-sitter module (will use regex fallback): ${err.message}`);
     });
 
-    // Register sidebar
-    sidebarProvider = new DevignSidebarProvider();
-    vscode.window.registerTreeDataProvider('devign.sidebar', sidebarProvider);
-
     // Register Webview Provider
     const provider = new DevignWebviewProvider(context.extensionUri);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(DevignWebviewProvider.viewType, provider)
     );
-
-    // Register Gate Panel TreeView
-    registerGatePanel(context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('devign.scanCurrentFile', () => scanCurrentFile()),
@@ -128,7 +118,6 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('devign.downloadModels', () => downloadModels(context)),
         vscode.commands.registerCommand('devign.installDependencies', () => installDependencies()),
         vscode.commands.registerCommand('devign.clearCacheAndUpdate', () => clearCacheAndUpdate(context)),
-        vscode.commands.registerCommand('devign.sidebar.refresh', () => sidebarProvider.refresh()),
         vscode.commands.registerCommand('devign.revealResult', (args: { filePath: string, line: number, column?: number }) => revealResult(args)),
         // Security Gate commands
         vscode.commands.registerCommand('devign.gate.run', () => runSecurityGate()),
@@ -235,13 +224,6 @@ async function scanDocument(document: vscode.TextDocument, isAutoScan: boolean =
         if (resultsPanel) {
             resultsPanel.updateResults([result]);
         }
-
-        // Update sidebar
-        sidebarProvider.setResults([result]);
-        sidebarProvider.setStatus({
-            lastScanTime: new Date(),
-            totalIssues: result.function_results?.length || (result.vulnerable ? 1 : 0)
-        });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         log(`Scan failed: ${message}`);
@@ -381,14 +363,6 @@ async function scanWorkspace() {
             if (resultsPanel) {
                 resultsPanel.updateResults(results);
             }
-
-            // Update sidebar
-            sidebarProvider.setResults(results);
-            const totalIssues = results.filter(r => r.vulnerable).length;
-            sidebarProvider.setStatus({
-                lastScanTime: new Date(),
-                totalIssues
-            });
 
             log(`Workspace scan complete: ${results.length} files, ${vulnCount} vulnerabilities`);
             vscode.window.showInformationMessage(
@@ -573,7 +547,6 @@ function showResultsPanel(context: vscode.ExtensionContext) {
 function clearDiagnostics() {
     diagnosticCollection.clear();
     decorationManager.clearAllDecorations();
-    sidebarProvider.clearResults();
     statusBarItem.text = '$(shield) Devign';
     statusBarItem.backgroundColor = undefined;
     vscode.window.showInformationMessage('Devign diagnostics cleared');
@@ -873,10 +846,6 @@ async function clearCacheAndUpdate(context: vscode.ExtensionContext) {
 
         // Re-download models
         await downloadModels(context);
-
-        // Update sidebar status
-        sidebarProvider.setStatus({ modelsVersion: 'latest (fresh)' });
-        sidebarProvider.refresh();
 
         vscode.window.showInformationMessage('Devign: Cache cleared and models updated');
     } catch (error) {

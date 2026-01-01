@@ -224,13 +224,48 @@ body {
 .stagger-children > *:nth-child(10) { animation-delay: 450ms; }
 .stagger-children > *:nth-child(n+11) { animation-delay: 500ms; }
 
+/* ============================================
+   ICON UTILITY CLASSES
+   ============================================ */
+
+/* Spinning animation for loading icons */
+@keyframes devign-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.devign-icon-spin {
+  animation: devign-spin 1s linear infinite;
+}
+
+/* Interactive icon hover state */
+.devign-icon-interactive {
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  margin: -2px;
+}
+
+.devign-icon-interactive:hover {
+  background: var(--color-bg-hover);
+}
+
+.devign-icon-interactive:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
 /* Respect reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
   .animate-fade-in-up,
   .animate-pulse,
   .animate-slide-in,
-  .stagger-children > * {
+  .stagger-children > *,
+  .devign-icon-spin {
     animation: none;
     opacity: 1;
     transform: none;

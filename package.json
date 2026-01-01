@@ -51,29 +51,13 @@
     "views": {
       "devign": [
         {
-          "id": "devign.sidebar",
-          "name": "Vulnerability Scanner",
-          "icon": "resources/devign.svg"
-        },
-        {
-          "id": "devign.gatePanel",
-          "name": "Security Gate",
-          "icon": "$(shield)"
-        },
-        {
           "type": "webview",
           "id": "devign.webview",
-          "name": "Devign Webview",
+          "name": "Devign Scanner",
           "icon": "resources/devign.svg"
         }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "devign.sidebar",
-        "contents": "Welcome to Devign Vulnerability Scanner!\n\n[Scan Current File](command:devign.scanCurrentFile)\n[Scan Workspace](command:devign.scanWorkspace)\n[Check Environment](command:devign.doctor)\n\nModels will be downloaded automatically on first scan."
-      }
-    ],
     "commands": [
       {
         "command": "devign.scanCurrentFile",
@@ -413,18 +397,13 @@
       "view/title": [
         {
           "command": "devign.scanCurrentFile",
-          "when": "view == devign.sidebar",
+          "when": "view == devign.webview",
           "group": "navigation@1"
         },
         {
           "command": "devign.scanWorkspace",
-          "when": "view == devign.sidebar",
+          "when": "view == devign.webview",
           "group": "navigation@2"
-        },
-        {
-          "command": "devign.sidebar.refresh",
-          "when": "view == devign.sidebar",
-          "group": "navigation@3"
         }
       ],
       "scm/title": [
