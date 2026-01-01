@@ -72,9 +72,10 @@ interface StatCardProps {
   config: CardConfig;
   count: number;
   onClick?: () => void;
+  index: number;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ config, count, onClick }) => {
+const StatCard: React.FC<StatCardProps> = ({ config, count, onClick, index }) => {
   const [isHovered, setIsHovered] = React.useState(false);
   const [isFocused, setIsFocused] = React.useState(false);
 
@@ -82,6 +83,7 @@ const StatCard: React.FC<StatCardProps> = ({ config, count, onClick }) => {
     ...cardStyles,
     ...getSeverityStyles(config.severity),
     ...((isHovered || isFocused) ? getHoverStyles(config.severity) : {}),
+    animationDelay: `${index * 100}ms`,
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -93,6 +95,7 @@ const StatCard: React.FC<StatCardProps> = ({ config, count, onClick }) => {
 
   return (
     <div
+      className="animate-fade-in-up animation-fill-both"
       role="button"
       tabIndex={0}
       aria-label={`${count} ${config.label} severity vulnerabilities. Click to filter.`}
@@ -105,7 +108,12 @@ const StatCard: React.FC<StatCardProps> = ({ config, count, onClick }) => {
       onBlur={() => setIsFocused(false)}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-        <Icon name={config.icon} severity={config.severity} size="md" />
+        <Icon 
+          name={config.icon} 
+          severity={config.severity} 
+          size="md" 
+          className={count > 0 && config.severity === 'critical' ? 'animate-pulse-subtle' : ''} 
+        />
         <span style={{ ...countStyles, color: `var(--severity-${config.severity}-text)` }}>
           {count}
         </span>
@@ -131,12 +139,13 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
       role="group"
       aria-label="Vulnerability severity statistics"
     >
-      {CARD_CONFIGS.map((config) => (
+      {CARD_CONFIGS.map((config, index) => (
         <StatCard
           key={config.severity}
           config={config}
           count={counts[config.severity]}
           onClick={onCardClick ? () => onCardClick(config.severity) : undefined}
+          index={index}
         />
       ))}
     </div>
