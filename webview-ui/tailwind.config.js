@@ -194,7 +194,162 @@ export default {
         'token-in-out': 'var(--ease-in-out)',
         'token-bounce': 'var(--ease-bounce)',
       },
+      // Animation Keyframes
+      keyframes: {
+        // === ENTRANCE ANIMATIONS ===
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'fade-in-up': {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-in-down': {
+          '0%': { opacity: '0', transform: 'translateY(-8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'scale-in': {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        'slide-in-right': {
+          '0%': { opacity: '0', transform: 'translateX(16px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        'slide-in-left': {
+          '0%': { opacity: '0', transform: 'translateX(-16px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+
+        // === EXIT ANIMATIONS ===
+        'fade-out': {
+          '0%': { opacity: '1' },
+          '100%': { opacity: '0' },
+        },
+        'fade-out-down': {
+          '0%': { opacity: '1', transform: 'translateY(0)' },
+          '100%': { opacity: '0', transform: 'translateY(8px)' },
+        },
+        'scale-out': {
+          '0%': { opacity: '1', transform: 'scale(1)' },
+          '100%': { opacity: '0', transform: 'scale(0.95)' },
+        },
+
+        // === ATTENTION ANIMATIONS ===
+        'pulse-glow': {
+          '0%, 100%': { 
+            opacity: '1',
+            boxShadow: '0 0 0 0 currentColor',
+          },
+          '50%': { 
+            opacity: '0.8',
+            boxShadow: '0 0 0 4px transparent',
+          },
+        },
+        'pulse-subtle': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.7' },
+        },
+        'shake': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-2px)' },
+          '20%, 40%, 60%, 80%': { transform: 'translateX(2px)' },
+        },
+        'bounce-subtle': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-4px)' },
+        },
+
+        // === LOADING ANIMATIONS ===
+        'shimmer': {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+        'spin-slow': {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        },
+        'progress-indeterminate': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(400%)' },
+        },
+
+        // === EXPAND/COLLAPSE ===
+        'accordion-down': {
+          '0%': { height: '0', opacity: '0' },
+          '100%': { height: 'var(--radix-accordion-content-height)', opacity: '1' },
+        },
+        'accordion-up': {
+          '0%': { height: 'var(--radix-accordion-content-height)', opacity: '1' },
+          '100%': { height: '0', opacity: '0' },
+        },
+        'collapsible-down': {
+          '0%': { height: '0', opacity: '0' },
+          '100%': { height: 'var(--radix-collapsible-content-height)', opacity: '1' },
+        },
+        'collapsible-up': {
+          '0%': { height: 'var(--radix-collapsible-content-height)', opacity: '1' },
+          '100%': { height: '0', opacity: '0' },
+        },
+
+        // === SEVERITY SPECIFIC ===
+        'critical-pulse': {
+          '0%, 100%': { 
+            boxShadow: '0 0 0 0 rgba(239, 68, 68, 0.4)',
+          },
+          '50%': { 
+            boxShadow: '0 0 0 6px rgba(239, 68, 68, 0)',
+          },
+        },
+        'scanning-pulse': {
+          '0%, 100%': { 
+            boxShadow: '0 0 0 0 rgba(59, 130, 246, 0.4)',
+          },
+          '50%': { 
+            boxShadow: '0 0 0 8px rgba(59, 130, 246, 0)',
+          },
+        },
+      },
+      animation: {
+        // Entrance
+        'fade-in': 'fade-in var(--duration-normal) var(--ease-out)',
+        'fade-in-fast': 'fade-in var(--duration-fast) var(--ease-out)',
+        'fade-in-up': 'fade-in-up var(--duration-normal) var(--ease-out)',
+        'fade-in-down': 'fade-in-down var(--duration-normal) var(--ease-out)',
+        'scale-in': 'scale-in var(--duration-normal) var(--ease-out)',
+        'slide-in-right': 'slide-in-right var(--duration-slow) var(--ease-out)',
+        'slide-in-left': 'slide-in-left var(--duration-slow) var(--ease-out)',
+        
+        // Exit
+        'fade-out': 'fade-out var(--duration-normal) var(--ease-out)',
+        'fade-out-down': 'fade-out-down var(--duration-normal) var(--ease-out)',
+        'scale-out': 'scale-out var(--duration-normal) var(--ease-out)',
+        
+        // Attention
+        'pulse-glow': 'pulse-glow 2s var(--ease-in-out) infinite',
+        'pulse-subtle': 'pulse-subtle 2s var(--ease-in-out) infinite',
+        'shake': 'shake 0.5s var(--ease-out)',
+        'bounce-subtle': 'bounce-subtle 0.5s var(--ease-bounce)',
+        
+        // Loading
+        'shimmer': 'shimmer 2s linear infinite',
+        'spin-slow': 'spin-slow 2s linear infinite',
+        'progress-indeterminate': 'progress-indeterminate 1.5s var(--ease-in-out) infinite',
+        
+        // Expand/Collapse
+        'accordion-down': 'accordion-down var(--duration-normal) var(--ease-out)',
+        'accordion-up': 'accordion-up var(--duration-normal) var(--ease-out)',
+        'collapsible-down': 'collapsible-down var(--duration-normal) var(--ease-out)',
+        'collapsible-up': 'collapsible-up var(--duration-normal) var(--ease-out)',
+        
+        // Severity
+        'critical-pulse': 'critical-pulse 2s var(--ease-in-out) infinite',
+        'scanning-pulse': 'scanning-pulse 1.5s var(--ease-in-out) infinite',
+      },
     },
   },
-  plugins: [],
+  plugins: [
+    require("tailwindcss-animate"),
+  ],
 }
