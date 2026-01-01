@@ -14,11 +14,12 @@ const statusConfig: Record<GateStatus, {
   color: string; 
   icon: string; 
   spin?: boolean;
+  animation?: string;
 }> = {
-  PASSED: { color: 'var(--status-passed)', icon: CODICONS.status.passed },
-  FAILED: { color: 'var(--status-failed)', icon: CODICONS.status.failed },
-  WARNING: { color: 'var(--status-warning)', icon: CODICONS.status.warning },
-  SCANNING: { color: 'var(--status-scanning)', icon: CODICONS.status.scanning, spin: true },
+  PASSED: { color: 'var(--status-passed)', icon: CODICONS.status.passed, animation: 'animate-scale-in' },
+  FAILED: { color: 'var(--status-failed)', icon: CODICONS.status.failed, animation: 'animate-critical-pulse' },
+  WARNING: { color: 'var(--status-warning)', icon: CODICONS.status.warning, animation: 'animate-pulse-subtle' },
+  SCANNING: { color: 'var(--status-scanning)', icon: CODICONS.status.scanning, spin: true, animation: 'animate-pulse' },
   IDLE: { color: 'var(--status-idle)', icon: CODICONS.status.idle },
 };
 
@@ -33,7 +34,7 @@ export const SecurityGateCompact: React.FC<SecurityGateCompactProps> = ({
 
   return (
     <div
-      className="security-gate-compact"
+      className="security-gate-compact transition-all duration-300"
       role="region"
       aria-label="Security gate status"
       style={{
@@ -41,6 +42,7 @@ export const SecurityGateCompact: React.FC<SecurityGateCompactProps> = ({
         border: '1px solid var(--card-border)',
         borderRadius: 'var(--card-radius)',
         padding: 'var(--card-padding)',
+        ...(status === 'FAILED' ? { boxShadow: '0 0 0 2px var(--status-failed-bg)' } : {}),
       }}
     >
       {/* Row 1: Status + Progress Bar + Percentage */}
@@ -64,13 +66,15 @@ export const SecurityGateCompact: React.FC<SecurityGateCompactProps> = ({
           aria-live="polite"
           aria-atomic="true"
         >
-          <Icon
-            name={config.icon}
-            size="sm"
-            color={config.color}
-            spin={config.spin}
-            title={`Status: ${status}`}
-          />
+          <div className={config.animation}>
+            <Icon
+              name={config.icon}
+              size="sm"
+              color={config.color}
+              spin={config.spin}
+              title={`Status: ${status}`}
+            />
+          </div>
           <span
             style={{
               color: config.color,

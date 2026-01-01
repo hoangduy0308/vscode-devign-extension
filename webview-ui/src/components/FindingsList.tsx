@@ -57,9 +57,10 @@ interface FindingCardProps {
   onFindingClick: (finding: Finding) => void;
   onViewCode: (finding: Finding) => void;
   onCopy: (finding: Finding) => void;
+  index?: number;
 }
 
-const FindingCard = memo<FindingCardProps>(({ finding, onFindingClick, onViewCode, onCopy }) => {
+const FindingCard = memo<FindingCardProps>(({ finding, onFindingClick, onViewCode, onCopy, index = 0 }) => {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -81,7 +82,7 @@ const FindingCard = memo<FindingCardProps>(({ finding, onFindingClick, onViewCod
     <div
       role="listitem"
       tabIndex={0}
-      className={`vuln-card vuln-card--${finding.severity} cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]`}
+      className={`vuln-card vuln-card--${finding.severity} cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] animate-fade-in-up animation-fill-both`}
       onClick={() => onFindingClick(finding)}
       onKeyDown={handleKeyDown}
       aria-label={`${finding.severity} severity finding: ${finding.title}`}
@@ -89,6 +90,7 @@ const FindingCard = memo<FindingCardProps>(({ finding, onFindingClick, onViewCod
         padding: 'var(--finding-item-padding)',
         borderRadius: 'var(--finding-item-radius)',
         marginBottom: 'var(--finding-item-gap)',
+        animationDelay: `${Math.min(index * 50, 500)}ms`,
       }}
     >
       <div className="flex items-start gap-3">
@@ -232,9 +234,10 @@ const CollapsibleGroup = memo<CollapsibleGroupProps>(
           aria-controls={`group-${group.key}`}
         >
           <Icon
-            name={isExpanded ? CODICONS.ui.chevronDown : CODICONS.ui.chevronRight}
+            name={CODICONS.ui.chevronRight}
             size="sm"
             color="var(--color-text-secondary)"
+            className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
           />
           {group.severity && (
             <Icon
@@ -266,17 +269,18 @@ const CollapsibleGroup = memo<CollapsibleGroupProps>(
         {isExpanded && (
           <div
             id={`group-${group.key}`}
-            className="mt-2 pl-4 stagger-children"
+            className="mt-2 pl-4 animate-accordion-down overflow-hidden"
             role="list"
             aria-label={`${group.label} findings`}
           >
-            {group.findings.map((finding) => (
+            {group.findings.map((finding, index) => (
               <FindingCard
                 key={finding.id}
                 finding={finding}
                 onFindingClick={onFindingClick}
                 onViewCode={onViewCode}
                 onCopy={onCopy}
+                index={index}
               />
             ))}
           </div>
@@ -523,14 +527,15 @@ export const FindingsList: React.FC<FindingsListProps> = ({
     }
 
     return (
-      <div className="stagger-children" role="list" aria-label="Security findings">
-        {sortedFindings.map((finding) => (
+      <div className="" role="list" aria-label="Security findings">
+        {sortedFindings.map((finding, index) => (
           <FindingCard
             key={finding.id}
             finding={finding}
             onFindingClick={onFindingClick}
             onViewCode={onViewCode}
             onCopy={handleCopy}
+            index={index}
           />
         ))}
       </div>
