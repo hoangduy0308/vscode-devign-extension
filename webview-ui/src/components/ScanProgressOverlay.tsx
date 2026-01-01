@@ -15,18 +15,18 @@ const StateIcons: Record<ScanState, React.ReactNode> = {
     </svg>
   ),
   scanning: (
-    <svg className="w-12 h-12 text-[var(--color-interactive-primary)] animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="w-12 h-12 text-[var(--color-interactive-primary)] animate-spin-slow" fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
     </svg>
   ),
   completed: (
-    <svg className="w-12 h-12 text-[var(--severity-success-text)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+    <svg className="w-12 h-12 text-[var(--severity-success-text)] animate-scale-in" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
   error: (
-    <svg className="w-12 h-12 text-[var(--severity-critical-text)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+    <svg className="w-12 h-12 text-[var(--severity-critical-text)] animate-shake" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
     </svg>
   )
@@ -116,7 +116,7 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
 
   return (
     <div 
-      className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="scan-progress-title"
@@ -125,13 +125,13 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
     >
       <div 
         ref={dialogRef}
-        className="bg-[var(--color-bg-elevated)] rounded-lg shadow-xl border border-[var(--color-border-default)] p-6 max-w-md w-full mx-4 animate-in fade-in zoom-in duration-200"
+        className="glass-heavy rounded-lg p-6 max-w-md w-full mx-4 animate-scale-in shadow-2xl"
       >
         {/* Close button for completed/error states */}
         {(state === 'completed' || state === 'error') && onClose && (
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 p-1 rounded hover:bg-[var(--color-bg-hover)] transition-colors"
+            className="absolute top-3 right-3 p-1 rounded hover:bg-[var(--color-bg-hover)] transition-colors hover:scale-110"
             aria-label="Close"
           >
             <svg className="w-5 h-5 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -148,7 +148,7 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
         {/* Title */}
         <h2 
           id="scan-progress-title"
-          className="text-lg font-semibold text-center text-[var(--color-text-primary)] mb-2"
+          className="text-lg font-semibold text-center text-[var(--color-text-primary)] mb-2 animate-fade-in-up"
         >
           {StateMessages[state].title}
         </h2>
@@ -156,14 +156,14 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
         {/* Description */}
         <p 
           id="scan-progress-description"
-          className="text-sm text-center text-[var(--color-text-secondary)] mb-4"
+          className="text-sm text-center text-[var(--color-text-secondary)] mb-4 animate-fade-in-up animation-delay-100 animation-fill-both"
         >
           {message || StateMessages[state].description}
         </p>
 
         {/* Progress bar (only for scanning state) */}
         {state === 'scanning' && (
-          <div className="mb-4">
+          <div className="mb-4 animate-fade-in-up animation-delay-200 animation-fill-both">
             <div 
               className="w-full bg-[var(--vscode-progressBar-background)] rounded-full h-2 overflow-hidden"
               role="progressbar"
@@ -173,8 +173,8 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
               aria-label="Scan progress"
             >
               <div 
-                className="h-full bg-[var(--color-interactive-primary)] transition-all duration-300 ease-out animate-pulse"
-                style={{ width: `${progress}%` }}
+                className="h-full bg-[var(--color-interactive-primary)] transition-all duration-300 ease-out animate-shimmer"
+                style={{ width: `${progress}%`, backgroundSize: '200% 100%', backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)' }}
               />
             </div>
             
@@ -189,11 +189,11 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
         )}
 
         {/* Action buttons */}
-        <div className="flex gap-3 justify-center">
+        <div className="flex gap-3 justify-center animate-fade-in-up animation-delay-300 animation-fill-both">
           {state === 'scanning' && (
             <button
               onClick={handleCancel}
-              className="px-4 py-2 rounded text-sm font-medium bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
+              className="px-4 py-2 rounded text-sm font-medium bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] transition-all hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
             >
               Cancel Scan
             </button>
@@ -203,14 +203,14 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
             <>
               <button
                 onClick={handleRetry}
-                className="px-4 py-2 rounded text-sm font-medium bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] hover:bg-[var(--vscode-button-hoverBackground)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
+                className="px-4 py-2 rounded text-sm font-medium bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] hover:bg-[var(--vscode-button-hoverBackground)] transition-all hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
               >
                 Retry Scan
               </button>
               {onClose && (
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 rounded text-sm font-medium bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
+                  className="px-4 py-2 rounded text-sm font-medium bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] transition-all hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
                 >
                   Dismiss
                 </button>
@@ -221,7 +221,7 @@ export const ScanProgressOverlay: React.FC<ScanProgressOverlayProps> = ({ status
           {state === 'completed' && onClose && (
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded text-sm font-medium bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] hover:bg-[var(--vscode-button-hoverBackground)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
+              className="px-4 py-2 rounded text-sm font-medium bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] hover:bg-[var(--vscode-button-hoverBackground)] transition-all hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focusBorder)]"
             >
               View Results
             </button>
