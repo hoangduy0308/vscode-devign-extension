@@ -32,7 +32,11 @@
     "wasm/**/*",
     "python/**/*",
     "resources/**/*",
-    "media/**/*"
+    "media/**/*",
+    "webview-ui/dist/**/*",
+    "node_modules/zod/**/*",
+    "node_modules/web-tree-sitter/**/*",
+    "node_modules/@vscode/codicons/**/*"
   ],
   "contributes": {
     "viewsContainers": {

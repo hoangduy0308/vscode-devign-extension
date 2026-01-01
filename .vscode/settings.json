@@ -1,2 +1,4 @@
 {
+    "typescript.autoClosingTags": false,
+    "devign.gate.enabled": true
 }
