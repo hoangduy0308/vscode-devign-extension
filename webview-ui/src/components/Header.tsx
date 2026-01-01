@@ -362,6 +362,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ...styles.scanButton,
                 ...(hoveredButton === 'scan' ? styles.scanButtonHover : {}),
               }}
+              className="hover:shadow-token-md active:scale-[0.98] transition-all"
               onClick={handleDropdownToggle}
               onMouseEnter={() => setHoveredButton('scan')}
               onMouseLeave={() => setHoveredButton(null)}
@@ -382,6 +383,7 @@ export const Header: React.FC<HeaderProps> = ({
             {isDropdownOpen && (
               <div
                 style={styles.dropdown}
+                className="animate-fade-in-down origin-top-left"
                 role="listbox"
                 aria-label="Select scan scope"
               >
@@ -399,6 +401,7 @@ export const Header: React.FC<HeaderProps> = ({
                         ? styles.dropdownItemHover
                         : {}),
                     }}
+                    className="active:bg-[var(--dropdown-item-active-bg)]"
                     onClick={() => handleScanSelect(option.scope)}
                     onMouseEnter={() => {
                       setHoveredButton(option.scope);
@@ -427,6 +430,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ? { background: 'var(--button-secondary-bg-hover)' }
                 : {}),
             }}
+            className="hover:scale-[1.02] active:scale-[0.98] transition-all"
             onClick={onCancel}
             onMouseEnter={() => setHoveredButton('cancel')}
             onMouseLeave={() => setHoveredButton(null)}
@@ -443,6 +447,7 @@ export const Header: React.FC<HeaderProps> = ({
             ...styles.iconButton,
             ...(hoveredButton === 'settings' ? styles.iconButtonHover : {}),
           }}
+          className="hover:rotate-45 transition-transform duration-300"
           onClick={onSettings}
           onMouseEnter={() => setHoveredButton('settings')}
           onMouseLeave={() => setHoveredButton(null)}
