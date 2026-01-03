@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, useRef } from 'react';
 import { type ScanResultPayload, type ReportData, type GitStatusPayload, type GateStatusPayload, type ActionResultPayload, MessageType } from './types';
 import { Header, type ScanStatus, type ScanScope } from './components/Header';
 import { StatsCards } from './components/StatsCards';
@@ -97,6 +97,40 @@ function App() {
   const [sortBy, setSortBy] = useState<SortBy>('severity');
   const [searchQuery, setSearchQuery] = useState('');
   const [scanScope, setScanScope] = useState<ScanScope>('file');
+
+  const dashboardTabRef = useRef<HTMLButtonElement>(null);
+  const reportTabRef = useRef<HTMLButtonElement>(null);
+
+  const handleTabKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const tabs = [dashboardTabRef.current, reportTabRef.current].filter(Boolean) as HTMLButtonElement[];
+    const currentIndex = tabs.findIndex(tab => tab === event.currentTarget);
+    
+    let nextIndex: number | null = null;
+    
+    switch (event.key) {
+      case 'ArrowLeft':
+        nextIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
+        break;
+      case 'ArrowRight':
+        nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = tabs.length - 1;
+        break;
+      default:
+        return;
+    }
+    
+    event.preventDefault();
+    const nextTab = tabs[nextIndex];
+    if (nextTab && !nextTab.disabled) {
+      nextTab.focus();
+      nextTab.click();
+    }
+  }, []);
 
   const status = getStatusFromScan(scanStatus, scanResult);
   const gateStatus = gateStatusData?.status as GateStatus ?? getGateStatusFromScan(scanStatus, scanResult);
@@ -271,120 +305,149 @@ function App() {
       />
 
       <main className="app-content" role="main" aria-label="Devign Scanner Dashboard">
-        {viewMode === 'dashboard' ? (
-          <>
-            <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3 mb-4" role="tablist" aria-label="View mode tabs">
-              <button
-                onClick={() => handleViewModeChange('dashboard')}
-                className="px-3 py-1.5 rounded text-sm font-medium bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]"
-                role="tab"
-                aria-selected={true}
-                aria-controls="dashboard-panel"
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => reportData && handleViewModeChange('report')}
-                disabled={!reportData}
-                className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 ${!reportData
-                    ? 'text-[var(--vscode-disabledForeground)] cursor-not-allowed opacity-50'
-                    : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
-                  }`}
-                role="tab"
-                aria-selected={false}
-                aria-controls="report-panel"
-                aria-disabled={!reportData}
-                title={!reportData ? 'No report data available. Run a scan first.' : undefined}
-              >
-                Report
-                {!reportData && <span className="text-xs opacity-70">(empty)</span>}
-              </button>
-            </div>
+        <div className="flex items-center gap-2 border-b border-[var(--vscode-panel-border)] pb-3 mb-4" role="tablist" aria-label="View mode tabs">
+          <button
+            ref={dashboardTabRef}
+            id="dashboard-tab"
+            onClick={() => handleViewModeChange('dashboard')}
+            onKeyDown={handleTabKeyDown}
+            className={`px-3 py-1.5 rounded text-sm font-medium ${viewMode === 'dashboard'
+              ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
+              : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
+            }`}
+            role="tab"
+            aria-selected={viewMode === 'dashboard'}
+            aria-controls="dashboard-panel"
+            tabIndex={viewMode === 'dashboard' ? 0 : -1}
+          >
+            Dashboard
+          </button>
+          <button
+            ref={reportTabRef}
+            id="report-tab"
+            onClick={() => reportData && handleViewModeChange('report')}
+            onKeyDown={handleTabKeyDown}
+            disabled={!reportData}
+            className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 ${viewMode === 'report'
+              ? 'bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]'
+              : !reportData
+                ? 'text-[var(--vscode-disabledForeground)] cursor-not-allowed opacity-50'
+                : 'text-[var(--vscode-descriptionForeground)] hover:bg-[var(--vscode-list-hoverBackground)]'
+            }`}
+            role="tab"
+            aria-selected={viewMode === 'report'}
+            aria-controls="report-panel"
+            aria-disabled={!reportData}
+            tabIndex={viewMode === 'report' ? 0 : -1}
+            title={!reportData ? 'No report data available. Run a scan first.' : undefined}
+          >
+            Report
+            {!reportData && <span className="text-xs opacity-70">(empty)</span>}
+          </button>
+        </div>
 
-            <StatsCards
-              critical={scanResult?.summary.critical || 0}
-              high={scanResult?.summary.high || 0}
-              medium={scanResult?.summary.medium || 0}
-              low={scanResult?.summary.low || 0}
-              onCardClick={handleCardClick}
-            />
+        <div
+          id="dashboard-panel"
+          role="tabpanel"
+          aria-labelledby="dashboard-tab"
+          hidden={viewMode !== 'dashboard'}
+        >
+          {viewMode === 'dashboard' && (
+            <>
+              <StatsCards
+                critical={scanResult?.summary.critical || 0}
+                high={scanResult?.summary.high || 0}
+                medium={scanResult?.summary.medium || 0}
+                low={scanResult?.summary.low || 0}
+                onCardClick={handleCardClick}
+              />
 
-            <SecurityGateCompact
-              status={gateStatus}
-              progress={gateProgress}
-              message={gateMessage}
-              blockedBy={blockedBy}
-            />
+              <SecurityGateCompact
+                status={gateStatus}
+                progress={gateProgress}
+                message={gateMessage}
+                blockedBy={blockedBy}
+              />
 
-            {findings.length > 0 ? (
-              <Suspense fallback={<div className="flex items-center justify-center py-8"><div className="animate-spin w-6 h-6 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div></div>}>
-                <FindingsList
-                  findings={findings}
-                  filter={filter}
-                  groupBy={groupBy}
-                  sortBy={sortBy}
-                  searchQuery={searchQuery}
-                  onFilterChange={handleFilterChange}
-                  onGroupByChange={handleGroupByChange}
-                  onSortByChange={handleSortByChange}
-                  onSearchChange={handleSearchChange}
-                  onFindingClick={handleFindingClick}
-                  onViewCode={handleViewCode}
+              {findings.length > 0 ? (
+                <Suspense fallback={<div className="flex items-center justify-center py-8"><div className="animate-spin w-6 h-6 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div></div>}>
+                  <FindingsList
+                    findings={findings}
+                    filter={filter}
+                    groupBy={groupBy}
+                    sortBy={sortBy}
+                    searchQuery={searchQuery}
+                    onFilterChange={handleFilterChange}
+                    onGroupByChange={handleGroupByChange}
+                    onSortByChange={handleSortByChange}
+                    onSearchChange={handleSearchChange}
+                    onFindingClick={handleFindingClick}
+                    onViewCode={handleViewCode}
+                  />
+                </Suspense>
+              ) : (
+                <EmptyState
+                  icon="codicon-shield"
+                  title="No Scan Results"
+                  description="Open a C/C++ file and run a scan to detect potential vulnerabilities in your code."
+                  primaryAction={{
+                    label: 'Run Scan',
+                    onClick: handleRunScan,
+                    icon: 'codicon-play'
+                  }}
                 />
-              </Suspense>
+              )}
+
+              {gitStatus && (
+                <Suspense fallback={<div className="flex items-center justify-center py-4"><div className="animate-spin w-5 h-5 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div></div>}>
+                  <GitQuickActions
+                    branch={gitStatus.branch}
+                    stagedCount={gitStatus.staged?.length || 0}
+                    unstagedCount={gitStatus.unstaged?.length || 0}
+                    isCommitting={false}
+                    isPushing={gitStatus.isPushing || false}
+                    isPulling={gitStatus.isPulling || false}
+                    onCommit={handleCommit}
+                    onPush={handlePush}
+                    onPull={handlePull}
+                  />
+                </Suspense>
+              )}
+            </>
+          )}
+        </div>
+
+        <div
+          id="report-panel"
+          role="tabpanel"
+          aria-labelledby="report-tab"
+          hidden={viewMode !== 'report'}
+        >
+          {viewMode === 'report' && (
+            reportData ? (
+              <ReportPanel
+                data={reportData}
+                onExport={handleExportReport}
+                onVulnerabilityClick={handleVulnerabilityClick}
+              />
             ) : (
               <EmptyState
-                icon="codicon-shield"
-                title="No Scan Results"
-                description="Open a C/C++ file and run a scan to detect potential vulnerabilities in your code."
+                icon="codicon-file-text"
+                title="No Report Generated"
+                description="Run a vulnerability scan first to generate a detailed security report."
                 primaryAction={{
                   label: 'Run Scan',
                   onClick: handleRunScan,
                   icon: 'codicon-play'
                 }}
+                secondaryAction={{
+                  label: 'Go to Dashboard',
+                  onClick: () => handleViewModeChange('dashboard')
+                }}
               />
-            )}
-
-            {gitStatus && (
-              <Suspense fallback={<div className="flex items-center justify-center py-4"><div className="animate-spin w-5 h-5 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div></div>}>
-                <GitQuickActions
-                  branch={gitStatus.branch}
-                  stagedCount={gitStatus.staged?.length || 0}
-                  unstagedCount={gitStatus.unstaged?.length || 0}
-                  isCommitting={false}
-                  isPushing={gitStatus.isPushing || false}
-                  isPulling={gitStatus.isPulling || false}
-                  onCommit={handleCommit}
-                  onPush={handlePush}
-                  onPull={handlePull}
-                />
-              </Suspense>
-            )}
-          </>
-        ) : (
-          reportData ? (
-            <ReportPanel
-              data={reportData}
-              onExport={handleExportReport}
-              onVulnerabilityClick={handleVulnerabilityClick}
-            />
-          ) : (
-            <EmptyState
-              icon="codicon-file-text"
-              title="No Report Generated"
-              description="Run a vulnerability scan first to generate a detailed security report."
-              primaryAction={{
-                label: 'Run Scan',
-                onClick: handleRunScan,
-                icon: 'codicon-play'
-              }}
-              secondaryAction={{
-                label: 'Go to Dashboard',
-                onClick: () => handleViewModeChange('dashboard')
-              }}
-            />
-          )
-        )}
+            )
+          )}
+        </div>
       </main>
 
       <style>{`

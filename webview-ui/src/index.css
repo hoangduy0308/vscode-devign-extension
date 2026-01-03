@@ -57,43 +57,58 @@
 }
 
 /* ============================================
-   GLASSMORPHISM EFFECTS
+   CARD BACKGROUND EFFECTS (Accessibility-First)
+   Replaced glassmorphism with solid backgrounds for better
+   readability and accessibility. Uses VS Code theme colors.
    ============================================ */
 body {
-  /* Glass backgrounds */
-  --glass-bg-light: rgba(255, 255, 255, 0.05);
-  --glass-bg-medium: rgba(255, 255, 255, 0.1);
-  --glass-bg-heavy: rgba(255, 255, 255, 0.15);
+  /* Solid backgrounds using VS Code theme variables */
+  --glass-bg-light: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --glass-bg-medium: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+  --glass-bg-heavy: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
   
-  /* Glass borders */
-  --glass-border: rgba(255, 255, 255, 0.1);
+  /* Subtle borders for card definition */
+  --glass-border: var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
   
-  /* Glass shadows */
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  /* Shadows for depth hierarchy */
+  --glass-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --glass-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-/* Utility classes */
+/* Utility classes - solid backgrounds, no blur */
 .glass {
   background: var(--glass-bg-light);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--glass-border);
 }
 
 .glass-medium {
   background: var(--glass-bg-medium);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
 }
 
 .glass-heavy {
   background: var(--glass-bg-heavy);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
+}
+
+/* Respect user preference for reduced transparency */
+@media (prefers-reduced-transparency: reduce) {
+  body {
+    --glass-bg-light: var(--vscode-editor-background);
+    --glass-bg-medium: var(--vscode-editor-background);
+    --glass-bg-heavy: var(--vscode-editor-background);
+    --glass-border: var(--vscode-panel-border);
+  }
+  
+  .glass,
+  .glass-medium,
+  .glass-heavy {
+    background: var(--vscode-editor-background);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 /* ============================================
