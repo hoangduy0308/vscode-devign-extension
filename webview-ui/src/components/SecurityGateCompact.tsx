@@ -1,36 +1,51 @@
 import React from 'react';
 import { Icon, CODICONS } from './ui/Icon';
 
-export type GateStatus = 'PASSED' | 'FAILED' | 'WARNING' | 'SCANNING' | 'IDLE';
+export type ScanState = 'SCANNING' | 'COMPLETE' | 'IDLE';
+export type GateResult = 'PASSED' | 'FAILED' | 'WARNING' | 'PENDING';
 
 export interface SecurityGateCompactProps {
-  status: GateStatus;
+  scanState: ScanState;
+  gateResult: GateResult;
   progress: number;
   message: string;
   blockedBy?: string[];
 }
 
-const statusConfig: Record<GateStatus, { 
+const scanStateConfig: Record<ScanState, { 
   color: string; 
   icon: string; 
   spin?: boolean;
-  animation?: string;
+  label: string;
 }> = {
-  PASSED: { color: 'var(--status-passed)', icon: CODICONS.status.passed, animation: 'animate-scale-in' },
-  FAILED: { color: 'var(--status-failed)', icon: CODICONS.status.failed, animation: 'animate-critical-pulse' },
-  WARNING: { color: 'var(--status-warning)', icon: CODICONS.status.warning, animation: 'animate-pulse-subtle' },
-  SCANNING: { color: 'var(--status-scanning)', icon: CODICONS.status.scanning, spin: true, animation: 'animate-pulse' },
-  IDLE: { color: 'var(--status-idle)', icon: CODICONS.status.idle },
+  SCANNING: { color: 'var(--status-scanning)', icon: CODICONS.status.scanning, spin: true, label: 'Scanning' },
+  COMPLETE: { color: 'var(--status-passed)', icon: CODICONS.status.passed, label: 'Complete' },
+  IDLE: { color: 'var(--status-idle)', icon: CODICONS.status.idle, label: 'Ready' },
+};
+
+const gateResultConfig: Record<GateResult, { 
+  color: string; 
+  icon: string; 
+  animation?: string;
+  label: string;
+}> = {
+  PASSED: { color: 'var(--status-passed)', icon: CODICONS.status.passed, animation: 'animate-scale-in', label: 'Pass' },
+  FAILED: { color: 'var(--status-failed)', icon: CODICONS.status.failed, animation: 'animate-critical-pulse', label: 'Fail' },
+  WARNING: { color: 'var(--status-warning)', icon: CODICONS.status.warning, animation: 'animate-pulse-subtle', label: 'Warning' },
+  PENDING: { color: 'var(--status-idle)', icon: CODICONS.status.idle, label: 'Pending' },
 };
 
 export const SecurityGateCompact: React.FC<SecurityGateCompactProps> = ({
-  status,
+  scanState,
+  gateResult,
   progress,
   message,
   blockedBy,
 }) => {
-  const config = statusConfig[status];
+  const scanConfig = scanStateConfig[scanState];
+  const gateConfig = gateResultConfig[gateResult];
   const clampedProgress = Math.max(0, Math.min(100, progress));
+  const isScanning = scanState === 'SCANNING';
 
   return (
     <div
@@ -42,10 +57,10 @@ export const SecurityGateCompact: React.FC<SecurityGateCompactProps> = ({
         border: '1px solid var(--card-border)',
         borderRadius: 'var(--card-radius)',
         padding: 'var(--card-padding)',
-        ...(status === 'FAILED' ? { boxShadow: '0 0 0 2px var(--status-failed-bg)' } : {}),
+        ...(gateResult === 'FAILED' ? { boxShadow: '0 0 0 2px var(--status-failed-bg)' } : {}),
       }}
     >
-      {/* Row 1: Status + Progress Bar + Percentage */}
+      {/* Row 1: Scan Status + Security Gate + Progress Bar + Percentage */}
       <div
         className="security-gate-compact__row"
         style={{
@@ -54,38 +69,102 @@ export const SecurityGateCompact: React.FC<SecurityGateCompactProps> = ({
           gap: 'var(--space-3)',
         }}
       >
-        {/* Status Indicator */}
+        {/* Scan Status Indicator */}
         <div
-          className="security-gate-compact__status"
+          className="security-gate-compact__scan-status"
           style={{
             display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: '2px',
             flexShrink: 0,
           }}
-          aria-live="polite"
-          aria-atomic="true"
         >
-          <div className={config.animation}>
-            <Icon
-              name={config.icon}
-              size="sm"
-              color={config.color}
-              spin={config.spin}
-              title={`Status: ${status}`}
-            />
-          </div>
           <span
             style={{
-              color: config.color,
-              fontSize: 'var(--font-size-sm)',
-              fontWeight: 'var(--font-weight-semibold)',
+              fontSize: 'var(--font-size-2xs, 10px)',
+              color: 'var(--color-text-muted)',
               textTransform: 'uppercase',
               letterSpacing: 'var(--letter-spacing-wide)',
             }}
           >
-            {status}
+            Scan Status
           </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-1)',
+            }}
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <Icon
+              name={scanConfig.icon}
+              size="sm"
+              color={scanConfig.color}
+              spin={scanConfig.spin}
+              title={`Scan: ${scanConfig.label}`}
+            />
+            <span
+              style={{
+                color: scanConfig.color,
+                fontSize: 'var(--font-size-sm)',
+                fontWeight: 'var(--font-weight-semibold)',
+              }}
+            >
+              {scanConfig.label}
+            </span>
+          </div>
+        </div>
+
+        {/* Security Gate Indicator */}
+        <div
+          className="security-gate-compact__gate-result"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: '2px',
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 'var(--font-size-2xs, 10px)',
+              color: 'var(--color-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: 'var(--letter-spacing-wide)',
+            }}
+          >
+            Security Gate
+          </span>
+          <div
+            className={gateConfig.animation}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-1)',
+            }}
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <Icon
+              name={gateConfig.icon}
+              size="sm"
+              color={gateConfig.color}
+              title={`Gate: ${gateConfig.label}`}
+            />
+            <span
+              style={{
+                color: gateConfig.color,
+                fontSize: 'var(--font-size-sm)',
+                fontWeight: 'var(--font-weight-semibold)',
+              }}
+            >
+              {gateConfig.label}
+            </span>
+          </div>
         </div>
 
         {/* Progress Bar */}
@@ -109,7 +188,7 @@ export const SecurityGateCompact: React.FC<SecurityGateCompactProps> = ({
             style={{
               width: `${clampedProgress}%`,
               height: '100%',
-              background: config.color,
+              background: isScanning ? scanConfig.color : gateConfig.color,
               borderRadius: 'var(--progress-radius)',
               transition: 'width var(--duration-normal) var(--ease-out)',
             }}

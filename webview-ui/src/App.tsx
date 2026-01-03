@@ -1,34 +1,29 @@
 import React, { useState, useEffect, useCallback, useMemo, Suspense, useRef } from 'react';
+import { Toaster } from 'sonner';
 import { type ScanResultPayload, type ReportData, type GitStatusPayload, type GateStatusPayload, type ActionResultPayload, MessageType } from './types';
-import { Header, type ScanStatus, type ScanScope } from './components/Header';
+import { Header, type ScanState, type ScanScope } from './components/Header';
 import { StatsCards } from './components/StatsCards';
-import { SecurityGateCompact, type GateStatus } from './components/SecurityGateCompact';
+import { SecurityGateCompact, type GateResult } from './components/SecurityGateCompact';
 import { type Finding, type SeverityFilter, type GroupBy, type SortBy } from './components/FindingsList';
 import { ReportPanel } from './components/ReportPanel';
 import { ScanProgressOverlay } from './components/ScanProgressOverlay';
 import { EmptyState } from './components/EmptyState';
 import { messages, state, type ScanStatusPayload } from './utilities/messages';
+import { showSuccess, showError } from './lib/toast';
 
 const FindingsList = React.lazy(() => import('./components/FindingsList'));
 const GitQuickActions = React.lazy(() => import('./components/GitQuickActions'));
 
 type ViewMode = 'dashboard' | 'report';
 
-const getStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanResultPayload | null): ScanStatus => {
+const getStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanResultPayload | null): ScanState => {
   if (scanStatus.status === 'scanning') return 'SCANNING';
-  if (scanStatus.status === 'error') return 'FAILED';
-  if (scanStatus.status === 'completed' || scanResult) {
-    const hasCritical = scanResult?.summary.critical && scanResult.summary.critical > 0;
-    const hasHigh = scanResult?.summary.high && scanResult.summary.high > 0;
-    if (hasCritical) return 'FAILED';
-    if (hasHigh) return 'WARNING';
-    return 'PASSED';
-  }
+  if (scanStatus.status === 'completed' || scanResult) return 'COMPLETE';
   return 'IDLE';
 };
 
-const getGateStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanResultPayload | null): GateStatus => {
-  if (scanStatus.status === 'scanning') return 'SCANNING';
+const getGateStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanResultPayload | null): GateResult => {
+  if (scanStatus.status === 'scanning') return 'PENDING';
   if (scanStatus.status === 'error') return 'FAILED';
   if (scanStatus.status === 'completed' || scanResult) {
     const hasCritical = scanResult?.summary.critical && scanResult.summary.critical > 0;
@@ -37,7 +32,7 @@ const getGateStatusFromScan = (scanStatus: ScanStatusPayload, scanResult: ScanRe
     if (hasHigh) return 'WARNING';
     return 'PASSED';
   }
-  return 'IDLE';
+  return 'PENDING';
 };
 
 const convertToFindings = (scanResult: ScanResultPayload | null): Finding[] => {
@@ -52,7 +47,7 @@ const convertToFindings = (scanResult: ScanResultPayload | null): Finding[] => {
   }));
 };
 
-const getGateMessage = (status: GateStatus): string => {
+const getGateMessage = (status: GateResult): string => {
   switch (status) {
     case 'PASSED':
       return 'Ready to commit · No blocking issues';
@@ -60,7 +55,7 @@ const getGateMessage = (status: GateStatus): string => {
       return 'Review recommended · High severity issues found';
     case 'FAILED':
       return 'Blocked · Critical issues must be resolved';
-    case 'SCANNING':
+    case 'PENDING':
       return 'Analyzing code...';
     default:
       return 'Run a scan to check security status';
@@ -91,6 +86,9 @@ function App() {
   const [gitStatus, setGitStatus] = useState<GitStatusPayload | null>(null);
   const [gateStatusData, setGateStatusData] = useState<GateStatusPayload | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
 
   const [filter, setFilter] = useState<SeverityFilter>('all');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
@@ -133,7 +131,7 @@ function App() {
   }, []);
 
   const status = getStatusFromScan(scanStatus, scanResult);
-  const gateStatus = gateStatusData?.status as GateStatus ?? getGateStatusFromScan(scanStatus, scanResult);
+  const gateStatus = gateStatusData?.status as GateResult ?? getGateStatusFromScan(scanStatus, scanResult);
   const gateProgress = gateStatusData?.progress ?? scanStatus.progress ?? (scanStatus.status === 'completed' ? 100 : 0);
   
   const findings = useMemo(() => convertToFindings(scanResult), [scanResult]);
@@ -227,9 +225,29 @@ function App() {
         case MessageType.SCAN_STATUS:
           setScanStatus(message.payload as ScanStatusPayload);
           if (message.payload?.status === 'completed') {
+            showSuccess('Scan completed successfully');
+            setIsRetrying(false);
+            setRetryCount(0);
             setTimeout(() => {
               setScanStatus({ status: 'idle' });
             }, 2000);
+          } else if (message.payload?.status === 'error') {
+            const errorMsg = message.payload?.message || 'Scan failed';
+            const isNetworkError = errorMsg.toLowerCase().includes('network') || 
+                                   errorMsg.toLowerCase().includes('timeout') ||
+                                   errorMsg.toLowerCase().includes('connection');
+            
+            if (isNetworkError && retryCount < MAX_RETRIES) {
+              setIsRetrying(true);
+              setRetryCount(prev => prev + 1);
+              setTimeout(() => {
+                messages.runScan({ scope: scanScope });
+              }, 2000);
+            } else {
+              setIsRetrying(false);
+              setRetryCount(0);
+              showError(errorMsg);
+            }
           }
           break;
         case MessageType.GIT_STATUS:
@@ -241,7 +259,11 @@ function App() {
           break;
         case MessageType.ACTION_RESULT: {
           const result = message.payload as ActionResultPayload;
-          console.log(`[Devign] Action ${result.action}: ${result.success ? 'success' : 'failed'}`, result.message || result.error);
+          if (result.success) {
+            showSuccess(result.message || `${result.action} completed`);
+          } else {
+            showError(result.error || `${result.action} failed`);
+          }
           break;
         }
       }
@@ -281,10 +303,33 @@ function App() {
 
   return (
     <div className="app">
+      <Toaster 
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: 'var(--vscode-notifications-background)',
+            color: 'var(--vscode-notifications-foreground)',
+            border: '1px solid var(--vscode-notifications-border)',
+            borderRadius: '4px',
+          },
+        }}
+      />
       <ScanProgressOverlay 
         status={scanStatus} 
         onClose={() => setScanStatus({ status: 'idle' })}
       />
+      
+      {isRetrying && (
+        <div className="fixed inset-0 bg-[var(--vscode-editor-background)]/80 flex items-center justify-center z-50">
+          <div className="flex flex-col items-center gap-3 p-6 bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg shadow-lg">
+            <div className="animate-spin w-8 h-8 border-2 border-[var(--vscode-progressBar-background)] border-t-[var(--vscode-button-background)] rounded-full"></div>
+            <span className="text-sm font-medium text-[var(--vscode-foreground)]">Retrying...</span>
+            <span className="text-xs text-[var(--vscode-descriptionForeground)]">
+              Attempt {retryCount} of {MAX_RETRIES}
+            </span>
+          </div>
+        </div>
+      )}
       
       {isConnecting && (
         <div className="fixed inset-0 bg-[var(--vscode-editor-background)] bg-opacity-80 flex items-center justify-center z-50">
@@ -296,7 +341,8 @@ function App() {
       )}
 
       <Header
-        status={status}
+        scanState={status}
+        gateResult={gateStatus === 'PASSED' ? 'PASSED' : gateStatus === 'FAILED' ? 'FAILED' : gateStatus === 'WARNING' ? 'WARNING' : 'PENDING'}
         scanScope={scanScope}
         currentFile={undefined}
         onScan={handleScan}

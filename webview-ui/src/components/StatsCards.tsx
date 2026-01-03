@@ -8,7 +8,9 @@ export interface StatsCardsProps {
   high: number;
   medium: number;
   low: number;
+  activeFilter?: SeverityType | null;
   onCardClick?: (severity: SeverityType) => void;
+  onClearFilter?: () => void;
 }
 
 interface CardConfig {
@@ -50,6 +52,11 @@ const getHoverStyles = (severity: SeverityType): React.CSSProperties => ({
   transform: 'translateY(-1px)',
 });
 
+const getActiveStyles = (severity: SeverityType): React.CSSProperties => ({
+  boxShadow: `0 0 0 2px var(--severity-${severity}-text), var(--card-shadow-hover)`,
+  transform: 'translateY(-2px)',
+});
+
 const countStyles: React.CSSProperties = {
   fontSize: 'var(--font-size-2xl)',
   fontWeight: 'var(--font-weight-bold)',
@@ -71,18 +78,20 @@ const gridStyles: React.CSSProperties = {
 interface StatCardProps {
   config: CardConfig;
   count: number;
+  isActive: boolean;
   onClick?: () => void;
   index: number;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ config, count, onClick, index }) => {
+const StatCard: React.FC<StatCardProps> = ({ config, count, isActive, onClick, index }) => {
   const [isHovered, setIsHovered] = React.useState(false);
   const [isFocused, setIsFocused] = React.useState(false);
 
   const combinedStyles: React.CSSProperties = {
     ...cardStyles,
     ...getSeverityStyles(config.severity),
-    ...((isHovered || isFocused) ? getHoverStyles(config.severity) : {}),
+    ...(isActive ? getActiveStyles(config.severity) : {}),
+    ...((isHovered || isFocused) && !isActive ? getHoverStyles(config.severity) : {}),
     animationDelay: `${index * 100}ms`,
   };
 
@@ -95,10 +104,11 @@ const StatCard: React.FC<StatCardProps> = ({ config, count, onClick, index }) =>
 
   return (
     <div
-      className="animate-fade-in-up animation-fill-both"
+      className={`animate-fade-in-up animation-fill-both ${isActive ? 'ring-2 ring-offset-1' : ''}`}
       role="button"
       tabIndex={0}
-      aria-label={`${count} ${config.label} severity vulnerabilities. Click to filter.`}
+      aria-label={`${count} ${config.label} severity vulnerabilities. ${isActive ? 'Filter active. ' : ''}Click to ${isActive ? 'clear' : 'apply'} filter.`}
+      aria-pressed={isActive}
       style={combinedStyles}
       onClick={onClick}
       onKeyDown={handleKeyDown}
@@ -118,7 +128,28 @@ const StatCard: React.FC<StatCardProps> = ({ config, count, onClick, index }) =>
           {count}
         </span>
       </div>
-      <span style={labelStyles}>{config.label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+        <span style={labelStyles}>{config.label}</span>
+        {isActive && (
+          <span 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '16px',
+              height: '16px',
+              borderRadius: '50%',
+              background: `var(--severity-${config.severity}-text)`,
+              color: 'var(--vscode-editor-background)',
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 'var(--font-weight-bold)',
+            }}
+            aria-hidden="true"
+          >
+            ✓
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -128,26 +159,63 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
   high,
   medium,
   low,
+  activeFilter,
   onCardClick,
+  onClearFilter,
 }) => {
   const counts: Record<SeverityType, number> = { critical, high, medium, low };
 
   return (
     <div
-      className="stats-grid"
-      style={gridStyles}
-      role="group"
-      aria-label="Vulnerability severity statistics"
+      className="stats-grid-wrapper"
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', width: '100%' }}
     >
-      {CARD_CONFIGS.map((config, index) => (
-        <StatCard
-          key={config.severity}
-          config={config}
-          count={counts[config.severity]}
-          onClick={onCardClick ? () => onCardClick(config.severity) : undefined}
-          index={index}
-        />
-      ))}
+      {/* Clear Filter Button */}
+      {activeFilter && onClearFilter && (
+        <button
+          onClick={onClearFilter}
+          className="animate-fade-in"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 'var(--space-1)',
+            padding: 'var(--space-1) var(--space-2)',
+            background: 'var(--vscode-button-secondaryBackground)',
+            color: 'var(--vscode-button-secondaryForeground)',
+            border: '1px solid var(--vscode-button-border, transparent)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 'var(--font-size-xs)',
+            fontWeight: 'var(--font-weight-medium)',
+            cursor: 'pointer',
+            alignSelf: 'flex-end',
+            transition: 'var(--transition-colors)',
+          }}
+          aria-label={`Clear ${activeFilter} severity filter`}
+        >
+          <span style={{ fontSize: '10px' }}>✕</span>
+          Clear {activeFilter} filter
+        </button>
+      )}
+      
+      {/* Stats Grid */}
+      <div
+        className="stats-grid"
+        style={gridStyles}
+        role="group"
+        aria-label="Vulnerability severity statistics"
+      >
+        {CARD_CONFIGS.map((config, index) => (
+          <StatCard
+            key={config.severity}
+            config={config}
+            count={counts[config.severity]}
+            isActive={activeFilter === config.severity}
+            onClick={onCardClick ? () => onCardClick(config.severity) : undefined}
+            index={index}
+          />
+        ))}
+      </div>
     </div>
   );
 };

@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Icon, CODICONS } from './ui/Icon';
 
-export type ScanStatus = 'PASSED' | 'FAILED' | 'WARNING' | 'SCANNING' | 'IDLE';
+export type ScanState = 'SCANNING' | 'COMPLETE' | 'IDLE';
+export type GateResult = 'PASSED' | 'FAILED' | 'WARNING' | 'PENDING';
 export type ScanScope = 'file' | 'workspace' | 'selection';
 
 export interface HeaderProps {
-  status: ScanStatus;
+  scanState: ScanState;
+  gateResult: GateResult;
   scanScope: ScanScope;
   currentFile?: string;
   onScan: (scope: ScanScope) => void;
@@ -13,7 +15,7 @@ export interface HeaderProps {
   onCancel: () => void;
 }
 
-interface StatusConfig {
+interface ScanStateConfig {
   icon: string;
   color: string;
   bgColor: string;
@@ -22,28 +24,15 @@ interface StatusConfig {
   spin?: boolean;
 }
 
-const STATUS_CONFIG: Record<ScanStatus, StatusConfig> = {
-  PASSED: {
-    icon: CODICONS.status.passed,
-    color: 'var(--status-passed)',
-    bgColor: 'var(--status-passed-bg)',
-    borderColor: 'var(--status-passed-border)',
-    label: 'Passed',
-  },
-  FAILED: {
-    icon: CODICONS.status.failed,
-    color: 'var(--status-failed)',
-    bgColor: 'var(--status-failed-bg)',
-    borderColor: 'var(--status-failed-border)',
-    label: 'Failed',
-  },
-  WARNING: {
-    icon: CODICONS.status.warning,
-    color: 'var(--status-warning)',
-    bgColor: 'var(--status-warning-bg)',
-    borderColor: 'var(--status-warning-border)',
-    label: 'Warning',
-  },
+interface GateConfig {
+  icon: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  label: string;
+}
+
+const SCAN_STATE_CONFIG: Record<ScanState, ScanStateConfig> = {
   SCANNING: {
     icon: CODICONS.status.scanning,
     color: 'var(--status-scanning)',
@@ -52,12 +41,50 @@ const STATUS_CONFIG: Record<ScanStatus, StatusConfig> = {
     label: 'Scanning',
     spin: true,
   },
+  COMPLETE: {
+    icon: CODICONS.status.passed,
+    color: 'var(--status-passed)',
+    bgColor: 'var(--status-passed-bg)',
+    borderColor: 'var(--status-passed-border)',
+    label: 'Complete',
+  },
   IDLE: {
     icon: CODICONS.status.idle,
     color: 'var(--status-idle)',
     bgColor: 'var(--status-idle-bg)',
     borderColor: 'var(--status-idle-border)',
-    label: 'Idle',
+    label: 'Ready',
+  },
+};
+
+const GATE_CONFIG: Record<GateResult, GateConfig> = {
+  PASSED: {
+    icon: CODICONS.status.passed,
+    color: 'var(--status-passed)',
+    bgColor: 'var(--status-passed-bg)',
+    borderColor: 'var(--status-passed-border)',
+    label: 'Pass',
+  },
+  FAILED: {
+    icon: CODICONS.status.failed,
+    color: 'var(--status-failed)',
+    bgColor: 'var(--status-failed-bg)',
+    borderColor: 'var(--status-failed-border)',
+    label: 'Fail',
+  },
+  WARNING: {
+    icon: CODICONS.status.warning,
+    color: 'var(--status-warning)',
+    bgColor: 'var(--status-warning-bg)',
+    borderColor: 'var(--status-warning-border)',
+    label: 'Warning',
+  },
+  PENDING: {
+    icon: CODICONS.status.idle,
+    color: 'var(--status-idle)',
+    bgColor: 'var(--status-idle-bg)',
+    borderColor: 'var(--status-idle-border)',
+    label: 'Pending',
   },
 };
 
@@ -204,7 +231,8 @@ const styles = {
 };
 
 export const Header: React.FC<HeaderProps> = ({
-  status,
+  scanState,
+  gateResult,
   scanScope,
   currentFile,
   onScan,
@@ -218,8 +246,9 @@ export const Header: React.FC<HeaderProps> = ({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const statusConfig = STATUS_CONFIG[status];
-  const isScanning = status === 'SCANNING';
+  const scanStateConfig = SCAN_STATE_CONFIG[scanState];
+  const gateConfig = GATE_CONFIG[gateResult];
+  const isScanning = scanState === 'SCANNING';
 
   const getScopeLabel = useCallback(() => {
     if (!isScanning) return null;
@@ -318,26 +347,90 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header style={styles.header} role="banner">
-      {/* Status Badge */}
-      <div
-        style={{
-          ...styles.statusBadge,
-          color: statusConfig.color,
-          background: statusConfig.bgColor,
-          border: `1px solid ${statusConfig.borderColor}`,
-        }}
-        role="status"
-        aria-live="polite"
-        aria-label={`Status: ${statusConfig.label}`}
-      >
-        <Icon
-          name={statusConfig.icon}
-          size="sm"
-          color={statusConfig.color}
-          spin={statusConfig.spin}
-          title={statusConfig.label}
-        />
-        <span>{statusConfig.label}</span>
+      {/* Status Indicators Container */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+        {/* Scan Status Badge */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: '2px',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 'var(--font-size-2xs, 10px)',
+              color: 'var(--color-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: 'var(--letter-spacing-wide)',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
+            Scan Status
+          </span>
+          <div
+            style={{
+              ...styles.statusBadge,
+              color: scanStateConfig.color,
+              background: scanStateConfig.bgColor,
+              border: `1px solid ${scanStateConfig.borderColor}`,
+            }}
+            role="status"
+            aria-live="polite"
+            aria-label={`Scan Status: ${scanStateConfig.label}`}
+          >
+            <Icon
+              name={scanStateConfig.icon}
+              size="sm"
+              color={scanStateConfig.color}
+              spin={scanStateConfig.spin}
+              title={scanStateConfig.label}
+            />
+            <span>{scanStateConfig.label}</span>
+          </div>
+        </div>
+
+        {/* Security Gate Badge */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: '2px',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 'var(--font-size-2xs, 10px)',
+              color: 'var(--color-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: 'var(--letter-spacing-wide)',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
+            Security Gate
+          </span>
+          <div
+            style={{
+              ...styles.statusBadge,
+              color: gateConfig.color,
+              background: gateConfig.bgColor,
+              border: `1px solid ${gateConfig.borderColor}`,
+            }}
+            role="status"
+            aria-live="polite"
+            aria-label={`Security Gate: ${gateConfig.label}`}
+          >
+            <Icon
+              name={gateConfig.icon}
+              size="sm"
+              color={gateConfig.color}
+              title={gateConfig.label}
+            />
+            <span>{gateConfig.label}</span>
+          </div>
+        </div>
       </div>
 
       {/* Scope Indicator */}
