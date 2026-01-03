@@ -1,6 +1,8 @@
-import React, { useMemo, useState, useCallback, memo, type CSSProperties } from 'react';
+import React, { useMemo, useState, useCallback, memo, useEffect, type CSSProperties } from 'react';
 import { List } from 'react-window';
 import { Icon, CODICONS } from './ui/Icon';
+
+const COMPACT_MODE_KEY = 'devign-compact-mode';
 
 export interface Finding {
   id: string;
@@ -58,7 +60,66 @@ interface FindingCardProps {
   onViewCode: (finding: Finding) => void;
   onCopy: (finding: Finding) => void;
   index?: number;
+  compact?: boolean;
 }
+
+const CompactFindingCard = memo<FindingCardProps>(({ finding, onFindingClick, onViewCode, index = 0 }) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onFindingClick(finding);
+    }
+  };
+
+  const handleViewCode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onViewCode(finding);
+  };
+
+  return (
+    <div
+      role="listitem"
+      tabIndex={0}
+      className={`group flex items-center gap-2 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--color-border-focus)] transition-all duration-150 hover:bg-[var(--color-bg-hover)]`}
+      onClick={() => onFindingClick(finding)}
+      onKeyDown={handleKeyDown}
+      aria-label={`${finding.severity} severity finding: ${finding.title}`}
+      style={{
+        height: '32px',
+        padding: '0 8px',
+        borderRadius: 'var(--radius-sm)',
+        borderLeft: `3px solid var(--severity-${finding.severity}-border)`,
+        marginBottom: '2px',
+        animationDelay: `${Math.min(index * 20, 200)}ms`,
+      }}
+    >
+      <Icon
+        name={CODICONS.severity[finding.severity]}
+        size="xs"
+        severity={finding.severity}
+        title={SEVERITY_LABELS[finding.severity]}
+      />
+      <span
+        className="flex-1 truncate text-xs font-medium"
+        style={{ color: 'var(--color-text-primary)' }}
+        title={finding.title}
+      >
+        {finding.title}
+      </span>
+      <button
+        className="font-mono text-[10px] hover:underline focus:outline-none opacity-70 group-hover:opacity-100 transition-opacity"
+        style={{ color: 'var(--color-text-link)' }}
+        onClick={handleViewCode}
+        title="Jump to code location"
+        aria-label={`Open ${finding.file} at line ${finding.line}`}
+      >
+        {finding.file.split('/').pop()}:{finding.line}
+      </button>
+    </div>
+  );
+});
+
+CompactFindingCard.displayName = 'CompactFindingCard';
 
 const FindingCard = memo<FindingCardProps>(({ finding, onFindingClick, onViewCode, onCopy, index = 0 }) => {
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -293,6 +354,7 @@ const CollapsibleGroup = memo<CollapsibleGroupProps>(
 CollapsibleGroup.displayName = 'CollapsibleGroup';
 
 const ITEM_HEIGHT = 180;
+const ITEM_HEIGHT_COMPACT = 34;
 const VIRTUALIZATION_THRESHOLD = 50;
 
 export const FindingsList: React.FC<FindingsListProps> = ({
@@ -310,6 +372,36 @@ export const FindingsList: React.FC<FindingsListProps> = ({
 }) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [listHeight, setListHeight] = useState(400);
+  const [isCompact, setIsCompact] = useState(() => {
+    try {
+      return localStorage.getItem(COMPACT_MODE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(COMPACT_MODE_KEY, String(isCompact));
+    } catch {
+      // localStorage may be unavailable
+    }
+  }, [isCompact]);
+
+  const toggleCompactMode = useCallback(() => {
+    setIsCompact((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        toggleCompactMode();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleCompactMode]);
 
   const handleCopy = useCallback((finding: Finding) => {
     const text = [
@@ -442,16 +534,26 @@ export const FindingsList: React.FC<FindingsListProps> = ({
       const finding = sortedFindings[index];
       return (
         <div style={{ ...style, paddingRight: 8 }}>
-          <FindingCard
-            finding={finding}
-            onFindingClick={onFindingClick}
-            onViewCode={onViewCode}
-            onCopy={handleCopy}
-          />
+          {isCompact ? (
+            <CompactFindingCard
+              finding={finding}
+              onFindingClick={onFindingClick}
+              onViewCode={onViewCode}
+              onCopy={handleCopy}
+              index={index}
+            />
+          ) : (
+            <FindingCard
+              finding={finding}
+              onFindingClick={onFindingClick}
+              onViewCode={onViewCode}
+              onCopy={handleCopy}
+            />
+          )}
         </div>
       );
     },
-    [sortedFindings, onFindingClick, onViewCode, handleCopy]
+    [sortedFindings, onFindingClick, onViewCode, handleCopy, isCompact]
   );
 
   const renderContent = () => {
@@ -516,7 +618,7 @@ export const FindingsList: React.FC<FindingsListProps> = ({
       return (
         <List
           rowCount={sortedFindings.length}
-          rowHeight={ITEM_HEIGHT}
+          rowHeight={isCompact ? ITEM_HEIGHT_COMPACT : ITEM_HEIGHT}
           rowComponent={VirtualizedRowComponent as any}
           rowProps={{}}
           className="scrollbar-thin"
@@ -527,17 +629,28 @@ export const FindingsList: React.FC<FindingsListProps> = ({
     }
 
     return (
-      <div className="" role="list" aria-label="Security findings">
-        {sortedFindings.map((finding, index) => (
-          <FindingCard
-            key={finding.id}
-            finding={finding}
-            onFindingClick={onFindingClick}
-            onViewCode={onViewCode}
-            onCopy={handleCopy}
-            index={index}
-          />
-        ))}
+      <div className="transition-all duration-200" role="list" aria-label="Security findings">
+        {sortedFindings.map((finding, index) =>
+          isCompact ? (
+            <CompactFindingCard
+              key={finding.id}
+              finding={finding}
+              onFindingClick={onFindingClick}
+              onViewCode={onViewCode}
+              onCopy={handleCopy}
+              index={index}
+            />
+          ) : (
+            <FindingCard
+              key={finding.id}
+              finding={finding}
+              onFindingClick={onFindingClick}
+              onViewCode={onViewCode}
+              onCopy={handleCopy}
+              index={index}
+            />
+          )
+        )}
       </div>
     );
   };
@@ -665,6 +778,25 @@ export const FindingsList: React.FC<FindingsListProps> = ({
               <option value="line">Line</option>
             </select>
           </div>
+
+          <button
+            onClick={toggleCompactMode}
+            className="p-1.5 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
+            style={{
+              background: isCompact ? 'var(--color-bg-tertiary)' : 'transparent',
+              border: '1px solid var(--color-border-default)',
+              borderRadius: 'var(--radius-md)',
+            }}
+            title={isCompact ? 'Switch to normal view (Ctrl+Shift+C)' : 'Switch to compact view (Ctrl+Shift+C)'}
+            aria-label={isCompact ? 'Switch to normal view' : 'Switch to compact view'}
+            aria-pressed={isCompact}
+          >
+            <Icon
+              name={isCompact ? 'list-flat' : 'list-selection'}
+              size="sm"
+              color="var(--color-text-secondary)"
+            />
+          </button>
 
           <span
             className="ml-auto text-xs"
