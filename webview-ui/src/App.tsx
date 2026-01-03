@@ -409,7 +409,8 @@ function App() {
               />
 
               <SecurityGateCompact
-                status={gateStatus}
+                scanState={status}
+                gateResult={gateStatus}
                 progress={gateProgress}
                 message={gateMessage}
                 blockedBy={blockedBy}
