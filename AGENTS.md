@@ -1,5 +1,7 @@
 # Skills
-Use front-end design skill if task is related to UI/UX design.
+
+Workflow: `planning` → `filing-beads` → `reviewing-beads` → `orchestrating-beads` → `implementing-ui`.
+Use `frontend-design` skill for UI/UX design before `implementing-ui`.
 
 # Agent Instructions
 
